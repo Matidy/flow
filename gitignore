@@ -1,0 +1,6 @@
+/Debug/
+/ipch/
+
+*.suo
+*.user
+*.sdf
