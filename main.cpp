@@ -15,9 +15,6 @@ const Uint32 MINIMUM_FRAME_DURATION = 1000/FRAME_RATE;
 
 int main(int argc, char* args[]) 
 {
-#if _DEBUG 
-	Debug debug;
-#endif
 	Window window;
 	if(!window.Init()) 
 	{
@@ -25,6 +22,9 @@ int main(int argc, char* args[])
 	}
 	else 
 	{
+#if _DEBUG 
+		Debug debug;
+#endif
 		WorldGrid worldGrid;
 		if (!worldGrid.Init())
 		{
@@ -76,7 +76,18 @@ int main(int argc, char* args[])
 						}
 						else
 						{
-							input.UpdateKeyboardState(e);
+#if _DEBUG
+							if (input.InputBatchEnabled())
+							{
+								input.BatchProcessInputs(e);
+							}
+							else
+							{
+#endif
+								input.UpdateKeyboardState(e);
+#if _DEBUG
+							}
+#endif
 						}
 					}
 					if (quit == true)
@@ -94,7 +105,11 @@ int main(int argc, char* args[])
 					//////////////////////////////
 					//		Render		 //
 					/////////////////////////
-					window.Draw();
+					window.Draw(worldGrid
+#if _DEBUG
+						, debug
+#endif
+					);
 					SDL_RenderPresent(window.m_gRenderer);
 				}
 			}

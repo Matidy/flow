@@ -2,7 +2,8 @@
 #include "Debug.h"
 
 Debug::Debug()
-	: m_debugEnabled(false)
+	: m_debugEnabled(false),
+	m_displayTessalation(false)
 {
 }
 
@@ -21,11 +22,25 @@ void Debug::ToggleDebug
 	}
 }
 
-bool Debug::DebugEnabled
+bool const Debug::DebugEnabled
+(
+) const
+{
+	return m_debugEnabled;
+}
+
+void Debug::ToggleTessalationDisplay
 (
 )
 {
-	return m_debugEnabled;
+	m_displayTessalation = !m_displayTessalation;
+}
+
+bool const Debug::DisplayTessalation
+(
+) const
+{
+	return m_displayTessalation;
 }
 
 void Debug::PropagateAdjacent

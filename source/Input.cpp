@@ -12,6 +12,10 @@ Input::Input()
 	: 
 	m_activeChord(KeyChordPair(SDL_SCANCODE_UNKNOWN, SDL_SCANCODE_UNKNOWN)),
 	m_activeChordProcessed(false)
+#if _DEBUG
+	, m_currInputBatchWaiting(0u)
+	, m_inputBatchEnabled(false)
+#endif
 {
 }
 
@@ -44,33 +48,38 @@ void Input::UpdateKeyboardState
 	SDL_Event const& _e
 )
 {
-	SDL_Scancode const key = _e.key.keysym.scancode;
+	SDL_Scancode const& key = _e.key.keysym.scancode;
 	switch (_e.type)
 	{
 	case SDL_KEYDOWN:
 	{
-		//handle chord input
-		if (!ActiveChordWaiting())
+		if (!IsPressed(key))
 		{
-			if (key == SDL_SCANCODE_LCTRL)
+			//handle chord input
+			if (!ActiveChordWaiting())
 			{
-				//start a chord
-				m_activeChord.first = key;
+				if (key == SDL_SCANCODE_LCTRL)
+				{
+					//start a chord
+					m_activeChord.first = key;
+				}
 			}
-		}
-		else if (ActiveChordWaiting()
-				&& key != m_activeChord.first) //check its not an event for the first chord key being held down
-		{
-			if (m_activeChord.second == SDL_SCANCODE_UNKNOWN)
+			else if (ActiveChordWaiting())
 			{
-				//complete our waiting chord with this key press
-				m_activeChord.second = key;
+				if (m_activeChord.second == SDL_SCANCODE_UNKNOWN)
+				{
+					//complete our waiting chord with this key press
+					m_activeChord.second = key;
+				}
 			}
+
+			//update keyboard state data
+			bool& isPressed = m_pressedKeys[key];
+			isPressed = true;
+
+			KeyPressedEvent(key);
 		}
 
-		//update keyboard state data
-		bool& isPressed = m_pressedKeys[key];
-		isPressed = true;
 		break;
 	}
 
@@ -100,17 +109,68 @@ void Input::UpdateKeyboardState
 		//update keyboard state data
 		bool& isPressed = m_pressedKeys[key];
 		isPressed = false;
+
+		KeyReleasedEvent(key);
+
 		break;
 	}
 	}
 }
+
+void Input::KeyPressedEvent
+(
+	SDL_Scancode const& _key
+)
+{
+	// debug mode event input handling
+	if (m_debug->DebugEnabled())
+	{
+		if (_key == SDL_SCANCODE_T)
+		{
+			m_debug->ToggleTessalationDisplay();
+		}
+		if (_key == SDL_SCANCODE_I)
+		{
+			m_inputBatchEnabled = !m_inputBatchEnabled;
+			m_inputBatchEnabled ? printf("Input Batch Enabled\n") : printf("Input Batch Disabled\n");
+		}
+	}
+	// main game event input handling
+	else
+	{
+		
+	}
+}
+
+void Input::KeyReleasedEvent
+(
+	SDL_Scancode const& _key
+)
+{
+	// debug mode event input handling
+	if (m_debug->DebugEnabled())
+	{
+		if (_key == SDL_SCANCODE_T)
+		{
+			m_debug->ToggleTessalationDisplay();
+		}
+	}
+	// main game event input handling
+	else
+	{
+
+	}
+}
+
 
 bool const& Input::IsPressed
 (
 	SDL_Scancode const _keyScanCode
 )
 {
-	return m_pressedKeys[_keyScanCode];
+	return m_pressedKeys[_keyScanCode]; //luckily when no entry exists a new one is created and the bool init'd to false by default which is
+										//what we want for calls to this function that are checking if keys that have never been pressed are
+										//pressed
 }
 
 //////////////////////////////////////////////////////////
@@ -193,8 +253,45 @@ void Input::HandleDebugInput
 	}
 	if (IsPressed(SDL_SCANCODE_RIGHT))
 	{
+
 		//@TODO: Increment propagation step
 		printf("Right Pressed Debug Mode\n");
+	}
+}
+
+bool const Input::InputBatchEnabled
+(
+) const
+{
+	return m_inputBatchEnabled;
+}
+
+void Input::BatchProcessInputs
+(
+	SDL_Event const _e
+)
+{
+	if (_e.key.keysym.scancode == SDL_SCANCODE_I)
+	{
+		//ugly hardcoded hack to make sure Input to disable input batching doesn't get input batched so
+		//we can turn input batching off easily
+		UpdateKeyboardState(_e);
+	}
+	else if (m_currInputBatchWaiting != m_inputBatchSize)
+	{
+		// store this input for later processing
+		m_inputBatch[m_currInputBatchWaiting] = _e;
+		m_currInputBatchWaiting++;
+	}
+	else
+	{
+		// batch process target reached, batch process inputs
+		for (Uint8 i = 0; i<m_inputBatchSize; i++)
+		{
+			UpdateKeyboardState(m_inputBatch[i]);
+		}
+
+		m_currInputBatchWaiting = 0;
 	}
 }
 #endif

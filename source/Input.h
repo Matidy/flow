@@ -23,6 +23,11 @@ public:
 	void UpdateKeyboardState(SDL_Event const& _e);
 	void HandleInput();
 
+#if _DEBUG
+	bool const InputBatchEnabled() const;
+	void BatchProcessInputs(SDL_Event const _e);
+#endif
+
 private:
 	WorldGrid * m_worldGrid; //should this be read only? a- no we toggle debug bool from this class
 
@@ -41,6 +46,9 @@ private:
 	//signal we're no longer waiting for a chord to be completed.
 	bool m_activeChordProcessed;
 
+	void KeyPressedEvent(SDL_Scancode const& _key);
+	void KeyReleasedEvent(SDL_Scancode const& _key);
+
 	bool const& IsPressed(SDL_Scancode const _keyScanCode);
 	bool const TryKeyChord(KeyChordPair _keyChord);
 	bool const ActiveChordWaiting() { return m_activeChord.first != SDL_SCANCODE_UNKNOWN; }
@@ -49,6 +57,11 @@ private:
 
 #if _DEBUG
 	Debug * m_debug;
+
+	static constexpr Uint8 m_inputBatchSize = 10u;
+	SDL_Event m_inputBatch[m_inputBatchSize];
+	Uint8 m_currInputBatchWaiting;
+	bool m_inputBatchEnabled;
 
 	void HandleDebugInput();
 #endif 
