@@ -13,35 +13,50 @@
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
+    <Filter Include="Header Files\Interfaces">
+      <UniqueIdentifier>{18d0e04b-86e1-43ec-a658-0d425b699ebd}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\Data">
+      <UniqueIdentifier>{cab24185-32da-4c38-90fe-fae2eeca877c}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="source\ValRGBA.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="source\Window.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="source\WorldGrid.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="source\Debug.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="source\Input.h">
+    <ClInclude Include="source\Data\flPoint.h">
+      <Filter>Header Files\Data</Filter>
+    </ClInclude>
+    <ClInclude Include="source\Data\flVec2.h">
+      <Filter>Header Files\Data</Filter>
+    </ClInclude>
+    <ClInclude Include="source\Data\ValRGBA.h">
+      <Filter>Header Files\Data</Filter>
+    </ClInclude>
+    <ClInclude Include="source\InputDelegate.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="source\flPoint.h">
+    <ClInclude Include="source\InputCore.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="source\flVec2.h">
+    <ClInclude Include="source\Interfaces\InputCoreIF.h">
+      <Filter>Header Files\Interfaces</Filter>
+    </ClInclude>
+    <ClInclude Include="source\RenderCore.h">
       <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="source\GameData.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="source\interfaces\RenderCoreIF.h">
+      <Filter>Header Files\Interfaces</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="source\Window.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="source\WorldGrid.cpp">
@@ -50,7 +65,16 @@
     <ClCompile Include="source\Debug.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="source\Input.cpp">
+    <ClCompile Include="source\InputCore.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="source\InputDelegate.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="source\RenderCore.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="source\GameData.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

@@ -1,16 +1,22 @@
-#include "flPoint.h"
+#include "Data/flPoint.h"
+#include "InputDelegate.h"
 
 #define WORLD_X_SIZE (2^12)
 #define WORLD_Y_SIZE (2^12)
 #define TOTAL_WORLD_SIZE WORLD_X_SIZE*WORLD_Y_SIZE
 
-class WorldGrid
+struct InputCoreIF;
+
+class WorldGrid : public InputDelegate
 {
 public:
-	WorldGrid();
-	bool Init();
+	//from InputDelegate
+	void virtual DefineHeldInput() override final;
+
+	WorldGrid(InputCoreIF& _inputCore);
+
 	bool GenerateWorld();
-	bool UpdateStep(uint32_t _timeStep);
+	bool UpdateStep(uint32_t const _timeStep);
 
 private:
 	flPoint& GetPointUp(uint32_t _currentPointIndex);

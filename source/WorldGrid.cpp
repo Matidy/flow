@@ -1,19 +1,27 @@
 #include "WorldGrid.h"
 
+#include "Interfaces/InputCoreIF.h"
 
-WorldGrid::WorldGrid
-(
-) 
-	: m_nullPoint(flPoint(1, flVec2(), false))
+/////////////////////				   ///////////////////////////////////////////////////////
+//////////////////   from InputDelegate   ///////////////////////////////////////////////////
+/////////////////////				   //////////////////////////
+void WorldGrid::DefineHeldInput()
 {
+	if (m_inputCoreIF.IsPressed(SDL_SCANCODE_LEFT))
+	{
+		printf("Left Pressed Game Mode\n");
+	}
+	if (m_inputCoreIF.IsPressed(SDL_SCANCODE_RIGHT))
+	{
+		printf("Right Pressed Game Mode\n");
+	}
 }
 
-bool WorldGrid::Init
-(
-)	
+///////////////////////////////////////////////////////////////////////////////////////////////
+WorldGrid::WorldGrid(InputCoreIF& _inputCore)
+	: InputDelegate(_inputCore),
+	m_nullPoint(flPoint(1, flVec2(), false))
 {
-
-	return true;
 }
 
 bool WorldGrid::GenerateWorld

@@ -1,122 +1,159 @@
+#include <SDL.h>
+/* following includes are redundant as SDL.h include all SDL headers. Kept for now as like explictness in which
+   parts of SDL are currently being used.
+*/
 #include <SDL_timer.h>
 #include <SDL_events.h>
 #include <SDL_render.h>
+/* https://stackoverflow.com/questions/21392755/difference-between-surface-and-texture-sdl-general
+   Difference between SDL_Surface and SDLTexture.
+*/
 
-#include "source/Window.h"
-#include "source/WorldGrid.h"
-#include "source/Input.h"
+#include <SDL_ttf.h>
+/* https://stackoverflow.com/questions/27331819/whats-the-difference-between-a-character-a-code-point-a-glyph-and-a-grapheme
+   Useful definitions of Character, code point, code unit, grapheme and glyph for working with ttf/Unicode.
+*/
 
-#if _DEBUG
-#include "source/Debug.h"
-#endif
+#include "source/RenderCore.h"
+#include "source/InputCore.h"
+#include "source/GameData.h"
 
-const Uint32 FRAME_RATE = 60u; //Currently frame rate = 2*FRAME_RATE
-const Uint32 MINIMUM_FRAME_DURATION = 1000/FRAME_RATE;
+
+constexpr Uint32 FRAME_RATE = 60u; //Currently frame rate = 2*FRAME_RATE for some reason.
+constexpr Uint32 MINIMUM_FRAME_DURATION = 1000/FRAME_RATE;
+
+namespace Main
+{
+	bool InitLibraries()
+	{
+		bool success = true;
+		if (SDL_Init(	SDL_INIT_VIDEO
+					 && SDL_INIT_EVENTS ) < 0) {
+			printf("SDL could not initialise! SDL_Error: %s\n", SDL_GetError());
+
+			success = false;
+		}
+		if (TTF_Init() < 0)
+		{
+			printf("SDL_ttf could not initialise! TTF_Error: %s\n", TTF_GetError());
+
+			success = false;
+		}
+
+		return success;
+	}
+
+	void ShutdownLibraries()
+	{
+		SDL_Quit();
+		TTF_Quit();
+	}
+}
 
 int main(int argc, char* args[]) 
 {
-	Window window;
-	if(!window.Init()) 
+	if (!Main::InitLibraries())
 	{
-		printf("Failed to initialise SDL and/or game window.\n");
+		printf("Failed in initialise Library dependencies.");
 	}
-	else 
+	else
 	{
-#if _DEBUG 
-		Debug debug;
-#endif
-		WorldGrid worldGrid;
-		if (!worldGrid.Init())
+		RenderCore renderCore;
+		InputCore inputCore;
+		if (!renderCore.Init())
 		{
-			printf("Failed to init WorldGrid. \n");
+			printf("Failed to initialise SDL and/or game window.\n");
 		}
 		else
 		{
-			Input input;
-			if (!input.Init(&worldGrid
-#if _DEBUG					
-				, &debug
-#endif
-				))
+			GameData gameData(renderCore, inputCore);
+
+			//test code section
 			{
-				printf("Failed to init Input. \n");
+				/*
+				char const * stringA = (char *)"Test String";
+				char stringB[18] = "You what my child";
+				char *stringC = (char*)"Ey up";
+
+				stringB = stringC;
+
+				int32_t d = 1;
+				*/
 			}
-			else
+
+			bool quit = false;
+			Uint32 startTime = SDL_GetTicks();
+			Uint32 currentTime = startTime;
+				
+			//////////////////////////////////////////////////////
+				//					Main Loop				//	
+			//////////////////////////////////////////////////////
+			Uint32 timeLastFrame;
+			Uint32 deltaTime;
+			while (!quit)
 			{
-				bool quit = false;
-				Uint32 startTime = SDL_GetTicks();
-				Uint32 currentTime = startTime;
-				Uint32 timeLastFrame;
-				Uint32 timeBetweenFrames;
+				// Frame Rate Cap //
+				timeLastFrame = currentTime;
+				currentTime = SDL_GetTicks();
+				deltaTime = currentTime - timeLastFrame;
+				if (deltaTime <= MINIMUM_FRAME_DURATION)
+					SDL_Delay(MINIMUM_FRAME_DURATION - deltaTime);
 
-				// init world state //
-				worldGrid.GenerateWorld();
-				//////////////////////////////////////////////////////
-					//					Main Loop				//	
-				//////////////////////////////////////////////////////
-				while (!quit)
+				////////////////////////////////////////////////////////////////////
+				//		Input		//
+				/////////////////////////
+				SDL_Event e;
+				while (SDL_PollEvent(&e) != 0)
 				{
-					// Frame Rate Cap //
-					timeLastFrame = currentTime;
-					currentTime = SDL_GetTicks();
-					timeBetweenFrames = currentTime - timeLastFrame;
-					if (timeBetweenFrames <= MINIMUM_FRAME_DURATION)
-						SDL_Delay(MINIMUM_FRAME_DURATION - timeBetweenFrames);
-
-					//////////////////////////////
-					//		Input		//
-					/////////////////////////
-					SDL_Event e;
-					while (SDL_PollEvent(&e) != 0)
+					if (e.type == SDL_QUIT)
 					{
-						if (e.type == SDL_QUIT)
+						quit = true;
+						break;
+					}
+					else
+					{
+#if _DEBUG
+						if (inputCore.InputBatchEnabled())
 						{
-							quit = true;
-							break;
+							inputCore.BatchProcessInputs(e);
 						}
 						else
 						{
-#if _DEBUG
-							if (input.InputBatchEnabled())
-							{
-								input.BatchProcessInputs(e);
-							}
-							else
-							{
 #endif
-								input.UpdateKeyboardState(e);
+							inputCore.UpdateKeyboardState(e);
 #if _DEBUG
-							}
-#endif
 						}
-					}
-					if (quit == true)
-					{
-						break;
-					}
-
-					input.HandleInput();
-						
-					////////////////////////////////
-					//		World Sim		//
-					////////////////////////////
-					worldGrid.UpdateStep(timeBetweenFrames);
-
-					//////////////////////////////
-					//		Render		 //
-					/////////////////////////
-					window.Draw(worldGrid
-#if _DEBUG
-						, debug
 #endif
-					);
-					SDL_RenderPresent(window.m_gRenderer);
+					}
 				}
+				if (quit == true)
+				{
+					break;
+				}
+
+				inputCore.CheckHeldKeyboardInput();
+
+				////////////////////////////////////////////////////////////////////
+				//		World Sim		//
+				////////////////////////////
+				gameData.UpdateStep(deltaTime);
+
+				////////////////////////////////////////////////////////////////////
+				//		Render		 //
+				/////////////////////////
+				renderCore.DrawUpdate(gameData, deltaTime);
+
+				SDL_RenderPresent(renderCore.m_gRenderer);
+
+				SDL_SetRenderDrawColor(renderCore.m_gRenderer, 0, 0, 0, 255);
+				SDL_RenderClear(renderCore.m_gRenderer); //reset frame to blank black screen to avoid back buffer data persisting across frames.
 			}
 		}
 	}
 	
-	window.Close();
+	//game closed - shutdown
 	SDL_Delay(100);
+	Main::ShutdownLibraries();
 	return 0;
 }
+

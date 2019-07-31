@@ -1,6 +1,7 @@
 /Debug/
 /ipch/
 /.vs/
+/x64/
 
 *.suo
 *.user

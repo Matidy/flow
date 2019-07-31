@@ -76,11 +76,11 @@
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>C:\Users\User\games\SDL2-2.0.9\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>C:\Users\User\games\SDL2_ttf-2.0.15;C:\Users\User\games\SDL2-2.0.9\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
-      <AdditionalLibraryDirectories>C:\Users\User\games\SDL2-2.0.9\VisualC\Win32\Debug;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>SDL2.lib;SDL2main.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>C:\Users\User\games\SDL2_ttf-2.0.15\VisualC\Win32\Debug;C:\Users\User\games\SDL2-2.0.9\VisualC\Win32\Debug;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>SDL2.lib;SDL2main.lib;SDL2_ttf.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <SubSystem>Console</SubSystem>
     </Link>
   </ItemDefinitionGroup>
@@ -122,19 +122,25 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="source\Data\flPoint.h" />
+    <ClInclude Include="source\Data\flVec2.h" />
+    <ClInclude Include="source\Data\ValRGBA.h" />
     <ClInclude Include="source\Debug.h" />
-    <ClInclude Include="source\Input.h" />
-    <ClInclude Include="source\flPoint.h" />
-    <ClInclude Include="source\ValRGBA.h" />
-    <ClInclude Include="source\flVec2.h" />
-    <ClInclude Include="source\Window.h" />
+    <ClInclude Include="source\GameData.h" />
+    <ClInclude Include="source\InputDelegate.h" />
+    <ClInclude Include="source\InputCore.h" />
+    <ClInclude Include="source\interfaces\RenderCoreIF.h" />
+    <ClInclude Include="source\Interfaces\InputCoreIF.h" />
+    <ClInclude Include="source\RenderCore.h" />
     <ClInclude Include="source\WorldGrid.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp" />
     <ClCompile Include="source\Debug.cpp" />
-    <ClCompile Include="source\Input.cpp" />
-    <ClCompile Include="source\Window.cpp" />
+    <ClCompile Include="source\GameData.cpp" />
+    <ClCompile Include="source\InputCore.cpp" />
+    <ClCompile Include="source\InputDelegate.cpp" />
+    <ClCompile Include="source\RenderCore.cpp" />
     <ClCompile Include="source\WorldGrid.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

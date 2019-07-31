@@ -24,6 +24,17 @@ public:
 	//whether or not this point reflects all energy that interacts with it, i.e. if it is 'moveable' or not
 	bool m_moveable;
 
+	//possibly only debug val, used to direct point propagation movement
+	enum Direction
+	{
+		UP,
+		DOWN,
+		LEFT,
+		RIGHT,
+		ALL
+	} m_direction;
+	
+
 	flPoint
 	(
 		int32_t _energy,
@@ -54,4 +65,4 @@ private:
 	// // function so will it actually save any computation).
 	//flPoint m_
 };
-#endif
+#endif //n_def flPoint
