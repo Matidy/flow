@@ -13,7 +13,20 @@ void InputCore::SetActiveInputDelegate
 	assert(_inputDelegate);
 	m_activeInputDelegate = _inputDelegate;
 
-	//@TODO - Handle object owning function pointed to getting destructed?
+	//@TODO - Handle object owning function pointed to getting destructed? InputDelegates should at least fire an event to InputCore when they are deleted.
+}
+
+void InputCore::InputDelegateDestructing(InputDelegate const * const _inputDelegate)
+{
+	//cleanup dangling pointers
+	if (m_activeInputDelegate == _inputDelegate)
+	{
+		m_activeInputDelegate = nullptr;
+	}
+	if (m_globalGameInputDelegate == _inputDelegate)
+	{
+		m_globalGameInputDelegate = nullptr;
+	}
 }
 
 void InputCore::SetGlobalGameInputDelegate(InputDelegate * _inputDelegate)

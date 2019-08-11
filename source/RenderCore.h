@@ -5,6 +5,7 @@
 #include <SDL_pixels.h>
 #include <SDL_rect.h>
 
+#include "Globals.h"
 #include "Interfaces/RenderCoreIF.h"
 
 //forward declares
@@ -12,6 +13,7 @@ struct SDL_Window;
 struct SDL_Surface;
 struct SDL_Renderer;
 
+class RenderDelegate;
 class GameData;
 class WorldGrid;
 #ifdef _DEBUG
@@ -22,15 +24,13 @@ class RenderCore : public RenderCoreIF
 {
   public:
 	//from RenderCoreIF
-	  virtual void CreateFadeLabel(char const * _symbol, char const * _text, SDL_Color _colour, SDL_Rect _displayRect, int32_t _timeBeforeFade) override final;
+	virtual void AddRenderDelegate(RenderDelegate const * _renderDelegate) override final;
+	virtual void RemoveRenderDelegate(RenderDelegate const * _renderDelegate) override final;
+	virtual void CreateFadeLabel(char const * _symbol, char const * _text, SDL_Color _colour, SDL_Rect _displayRect, int32_t _timeBeforeFade) override final;
 
 	//SDL data structures
 	SDL_Window* m_gWindow;
 	SDL_Renderer* m_gRenderer;
-
-	//Window dimension constant
-	static constexpr uint32_t WINDOW_WIDTH = 1024u;
-	static constexpr uint32_t WINDOW_HEIGHT = (WINDOW_WIDTH/16)*9;
 
 	RenderCore(void);
 	~RenderCore();
@@ -44,30 +44,9 @@ class RenderCore : public RenderCoreIF
 	void DrawUpdate(GameData const& _gameData, uint32_t const _timeStep);
 
   private:
-	  //could replace this with a screen class for each specific render context? Not sure what the data spec
-	  //for that would be right now though
-	  enum class WindowDrawState
-	  {
-			WDS_Game
-#ifdef _DEBUG
-			, WDS_DebugPropagation
-			, WDS_DebugTessalation
-#endif
-	  };
-	  WindowDrawState m_drawState;
-
-	  //could use a switch draw context function to clear screen and update m_drawState here
-
-	void DrawGame(WorldGrid const& _worldGrid);
+	std::vector<RenderDelegate const *> m_renderDelegates;
+	
 	void ProcessTextLabels(uint32_t const _timeStep);
-
-#ifdef _DEBUG
-	// @TODO - better way to do this might be to have window store an array of function pointers to
-	// debug draw functions defined in other classes (so that the debug function are local to the
-	// data they're drawing from)
-	void DrawDebugPropagation(Debug const& _debug);
-	void DrawDebugTessalation(Debug const& _debug);
-#endif
 
 	struct FadingTextLabel
 	{
@@ -101,10 +80,27 @@ class RenderCore : public RenderCoreIF
 			return *this;
 		}
 
-	private:
+	  private:
 		//used to allow decrments to label alpha to be collected across multiple frames to avoid 
 		//rounding issues, as alpha values are stored as ints
 		float m_fadeAccumulator = 0.f; 
 	};
 	std::vector<FadingTextLabel> m_textLabels; 
 };
+
+//SDL render API
+/*
+	SDL_SetRenderDrawColor
+	SDL_RenderFillRect(m_gRenderer,
+	SDL_RenderDrawRect(m_gRenderer,
+	SDL_RenderDrawLines
+	SDL_RenderDrawLine
+	SDL_RenderDrawPoints
+	SDL_RenderDrawPoint
+
+	SDL_RenderClear
+
+	SDL_RenderSetViewport - specify only drawing to a sub-region of window/surface/renderer
+
+	SDL_BlitSurface( gHelloWorld, NULL, gScreenSurface, NULL );
+*/

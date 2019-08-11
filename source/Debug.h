@@ -2,14 +2,20 @@
 #include <SDL_scancode.h>
 
 #include "Data/flPoint.h"
+#include "RenderDelegate.h"
 #include "InputDelegate.h"
 
 struct RenderCoreIF;
 struct InputCoreIF;
 
-class Debug : public InputDelegate
+class Debug : 
+	public RenderDelegate,
+	public InputDelegate
 {
 public:
+	//from RenderDelegate
+	virtual void DelegateDraw(SDL_Renderer * const _gRenderer) const override final;
+
 	//from InputDelegate
 	virtual void DefineHeldInput() override final;
 	virtual void KeyPressedInput(SDL_Scancode const& _key) override final;
@@ -18,15 +24,12 @@ public:
 	static constexpr uint32_t m_debugWorldDim = 17u;
 	static constexpr uint32_t m_debugWorldSize = m_debugWorldDim * m_debugWorldDim;
 
-	Debug(RenderCoreIF& _renderCoreIF, InputCoreIF& _inputCore);
+	Debug(RenderCoreIF& _renderCoreIF, InputCoreIF& _inputCoreIF);
+	~Debug();
 	void UpdateStep(uint32_t const _timeStep);
 
 	bool const& ToggleDebug();
 	bool const DebugEnabled() const;
-
-	bool const DisplayTessalation() const;
-
-	flPoint const * const GetDebugWorldDataRead() const;
 
 private:
 	enum PropagationMode
@@ -38,19 +41,20 @@ private:
 	};
 	uint32_t m_propagationMode;
 
+	enum class DrawMode
+	{
+		Propagation,
+		Tessalation
+	};
+	DrawMode m_drawMode;
+
 	static constexpr uint32_t m_nullIndex = ~0;
 
-	flPoint m_debugWorld[m_debugWorldDim*m_debugWorldDim];
+	flPoint* m_debugWorld;
 	bool m_debugEnabled;
-	//used to tell Window whether it should be displaying tessalation screen or not
-	bool m_displayTessalation;
 
 	float m_propagationRate;
 	std::vector<uint32_t> m_pointsToPropagate;
-
-	RenderCoreIF& m_renderCoreIF;
-
-	void ToggleTessalationDisplay();
 
 	void CyclePropModeLeft();
 	void CyclePropModeRight();

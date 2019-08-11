@@ -10,6 +10,7 @@ class InputCore : public InputCoreIF
 public:
 	//from InputCoreIF
 	virtual void SetActiveInputDelegate(InputDelegate * _inputDelegate) override final;
+	virtual void InputDelegateDestructing(InputDelegate const * const _inputDelegate) override final;
 	virtual void SetGlobalGameInputDelegate(InputDelegate * _inputDelegate) override final;
 	virtual bool const& IsPressed(SDL_Scancode const _keyScanCode) override final;
 	virtual bool const TryKeyChord(KeyChordPair _keyChord) override final;

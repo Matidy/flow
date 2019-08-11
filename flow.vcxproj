@@ -127,11 +127,13 @@
     <ClInclude Include="source\Data\ValRGBA.h" />
     <ClInclude Include="source\Debug.h" />
     <ClInclude Include="source\GameData.h" />
+    <ClInclude Include="source\Globals.h" />
     <ClInclude Include="source\InputDelegate.h" />
     <ClInclude Include="source\InputCore.h" />
     <ClInclude Include="source\interfaces\RenderCoreIF.h" />
     <ClInclude Include="source\Interfaces\InputCoreIF.h" />
     <ClInclude Include="source\RenderCore.h" />
+    <ClInclude Include="source\RenderDelegate.h" />
     <ClInclude Include="source\WorldGrid.h" />
   </ItemGroup>
   <ItemGroup>
@@ -141,6 +143,7 @@
     <ClCompile Include="source\InputCore.cpp" />
     <ClCompile Include="source\InputDelegate.cpp" />
     <ClCompile Include="source\RenderCore.cpp" />
+    <ClCompile Include="source\RenderDelegate.cpp" />
     <ClCompile Include="source\WorldGrid.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

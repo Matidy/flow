@@ -21,7 +21,6 @@ struct flVec2
 		: 
 		x(_x),
 		y (_y)
-	{
-	}
+	{}
 };
 #endif

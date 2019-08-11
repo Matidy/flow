@@ -7,6 +7,7 @@ class InputDelegate
 {
 public:
 	InputDelegate(InputCoreIF& _inputCore);
+	~InputDelegate();
 
 	virtual void DefineHeldInput() {}
 	virtual void KeyPressedInput(SDL_Scancode const& _key) {}

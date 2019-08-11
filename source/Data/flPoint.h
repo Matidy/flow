@@ -5,6 +5,8 @@
 struct flPoint
 {
 public:
+	//@optimise - storing very large array of these, meaning every byte extra here gets multiplied by the total array size
+
 	//going with axis aligned x,y square tessalated grid for simplicity sake - conforms to existing knowledge/
 	//understanding of 2D vector maths/trigonometry.
 	//
@@ -15,7 +17,7 @@ public:
 	//currently only 0+ values of energy. future changes could be: 
 	//- to scale attraction/repulsion force based on amount of energy
 	//- to handle negative values of energy as flipping repulsive force to attractive
-	int32_t m_energy;
+	int16_t m_energy; //up to 16,384
 
 	//store both direction and speed as one in single Vec2 (i.e. how far energy will move per timestep & in
 	//what direction)

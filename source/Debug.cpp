@@ -2,80 +2,45 @@
 #include <assert.h>
 #include <SDL_pixels.h>
 #include <SDL_rect.h>
+#include <SDL_render.h>
+
 #include "Debug.h"
+#include "Globals.h"
 
 #include "Interfaces/InputCoreIF.h"
 #include "Interfaces/RenderCoreIF.h"
 
-/////////////////////				   ///////////////////////////////////////////////////////
-//////////////////   from InputDelegate   ///////////////////////////////////////////////////
-/////////////////////				   //////////////////////////
-void Debug::DefineHeldInput()
-{
-	if (m_inputCoreIF.IsPressed(SDL_SCANCODE_LEFT))
-	{
-		//@TODO: Decrement propagation step
-		printf("Left Pressed Debug Mode\n");
-	}
-	if (m_inputCoreIF.IsPressed(SDL_SCANCODE_RIGHT))
-	{
-		//@TODO: Increment propagation step
-		printf("Right Pressed Debug Mode\n");
-	}
-}
-
-void Debug::KeyPressedInput(SDL_Scancode const& _key)
-{
-	if (_key == SDL_SCANCODE_T)
-	{
-		ToggleTessalationDisplay();
-	}
-	//cycle between propagation modes
-	if (_key == SDL_SCANCODE_O)
-	{
-		CyclePropModeRight();
-	}
-	if (_key == SDL_SCANCODE_P)
-	{
-		CyclePropModeLeft();
-	}
-	// propagate debug control
-	if (_key == SDL_SCANCODE_LEFT)
-	{
-		//UnpropagateAdjacent(); @Fix
-	}
-	if (_key == SDL_SCANCODE_RIGHT)
-	{
-		PropagateAdjacent();
-	}
-	if (_key == SDL_SCANCODE_SPACE)
-	{
-
-	}
-}
-
-void Debug::KeyReleasedInput(SDL_Scancode const& _key)
-{
-	if (_key == SDL_SCANCODE_T)
-	{
-		ToggleTessalationDisplay();
-	}
-}
+#include "Data/ValRGBA.h"
 
 /////////////////////////////////////////////////////////////////////////////////////////////////
-Debug::Debug(RenderCoreIF& _renderCoreIF, InputCoreIF& _inputCore)
-	: InputDelegate(_inputCore),
-	  m_renderCoreIF(_renderCoreIF),
+Debug::Debug(RenderCoreIF& _renderCoreIF, InputCoreIF& _inputCoreIF)
+	: RenderDelegate(_renderCoreIF, false),
+	  InputDelegate(_inputCoreIF),
 	  m_debugEnabled(false),
-	  m_displayTessalation(false),
 	  m_propagationRate(2.0f),
-	  m_propagationMode(PropagationMode::SimpleDirectional)
+	  m_propagationMode(PropagationMode::SimpleDirectional),
+	  m_drawMode(DrawMode::Propagation)
 {
+	m_debugWorld = new flPoint[m_debugWorldSize];
+
 	uint32_t centerIndex = m_debugWorldSize % 2 ? m_debugWorldSize/2 + 1 : m_debugWorldSize/2;
 	m_debugWorld[centerIndex].m_energy = 1;
 	m_debugWorld[centerIndex].m_direction = flPoint::Direction::ALL;
 
 	m_pointsToPropagate.push_back(centerIndex);
+
+	//@TODO - would be good to have a debug mode where we can cycle through different resolutions of grid to get a real feel
+	//		  for each resolution.
+}
+
+Debug::~Debug()
+{
+	//@bug - on window close - HEAP CORRUPTION DETECTED: before Normal block (#166) at 0x1DFB4060.
+	//CRT detected that the application wrote to memory before start of heap buffer.
+	//cause - propagate debug grid 8 or more times to get to occur, on 8th & 9th propagation only row on left
+	//		  gets propagated.
+	//action - going to leave for now as expect to rewrite prop code at later date
+	delete[] m_debugWorld;
 }
 
 void Debug::UpdateStep(uint32_t const _timeStep)
@@ -105,30 +70,12 @@ bool const& Debug::ToggleDebug()
 	return m_debugEnabled;
 }
 
-bool const Debug::DebugEnabled
-(
-) const
+bool const Debug::DebugEnabled() const
 {
 	return m_debugEnabled;
 }
 
-void Debug::ToggleTessalationDisplay
-(
-)
-{
-	m_displayTessalation = !m_displayTessalation;
-}
-
-bool const Debug::DisplayTessalation
-(
-) const
-{
-	return m_displayTessalation;
-}
-
-void Debug::CyclePropModeLeft
-(
-)
+void Debug::CyclePropModeLeft()
 {
 	if (m_propagationMode == 0)
 	{
@@ -141,9 +88,7 @@ void Debug::CyclePropModeLeft
 
 }
 
-void Debug::CyclePropModeRight
-(
-)
+void Debug::CyclePropModeRight()
 {
 	if (m_propagationMode == (uint32_t)PropagationMode::CountPropagationMode - 1)
 	{
@@ -155,9 +100,7 @@ void Debug::CyclePropModeRight
 	}
 }
 
-void Debug::PropagateAdjacent
-(
-)
+void Debug::PropagateAdjacent()
 {
 	std::vector<uint32_t> nextFramePoints;
 	std::vector<uint32_t>::const_iterator iter = m_pointsToPropagate.cbegin();
@@ -301,16 +244,14 @@ void Debug::PropagateAdjacent
 	m_pointsToPropagate = nextFramePoints;
 }
 
-void Debug::UnpropagateAdjacent
-(
-)
+void Debug::UnpropagateAdjacent()
 {
 	std::vector<uint32_t>::iterator iter = m_pointsToPropagate.begin();
 	std::vector<uint32_t>::iterator end = m_pointsToPropagate.end();
 	for (; iter != end;)
 	{
 		uint32_t index = *iter;
-		int32_t& curEnergy = m_debugWorld[index].m_energy;
+		int16_t& curEnergy = m_debugWorld[index].m_energy;
 		curEnergy -= 1;
 		assert(curEnergy >= 0);
 		//if ()
@@ -318,9 +259,7 @@ void Debug::UnpropagateAdjacent
 	}
 }
 
-void Debug::ResetWorldGrid
-(
-)
+void Debug::ResetWorldGrid()
 {
 	uint32_t centerIndex = m_debugWorldDim % 2 ? m_debugWorldDim / 2 + 1 : m_debugWorldDim / 2;
 	for (uint8_t i = 0; i < m_debugWorldDim*m_debugWorldDim; i++)
@@ -334,13 +273,6 @@ void Debug::ResetWorldGrid
 			m_debugWorld[i].m_energy = 1;
 		}
 	}
-}
-
-flPoint const * const Debug::GetDebugWorldDataRead
-(
-) const
-{
-	return m_debugWorld;
 }
 
 uint32_t Debug::GetIndexUp
@@ -359,10 +291,7 @@ uint32_t Debug::GetIndexUp
 	}
 }
 
-uint32_t Debug::GetIndexDown
-(
-	uint32_t _currentPointIndex
-)
+uint32_t Debug::GetIndexDown(uint32_t _currentPointIndex)
 {
 	if (_currentPointIndex > (m_debugWorldDim*m_debugWorldDim) - 1 - m_debugWorldDim)
 	{
@@ -375,10 +304,7 @@ uint32_t Debug::GetIndexDown
 	}
 }
 
-uint32_t Debug::GetIndexLeft
-(
-	uint32_t _currentPointIndex
-)
+uint32_t Debug::GetIndexLeft(uint32_t _currentPointIndex)
 {
 	if (_currentPointIndex % m_debugWorldDim == 0)
 	{
@@ -389,13 +315,9 @@ uint32_t Debug::GetIndexLeft
 	{
 		return _currentPointIndex - 1;
 	}
-
 }
 
-uint32_t Debug::GetIndexRight
-(
-	uint32_t _currentPointIndex
-)
+uint32_t Debug::GetIndexRight(uint32_t _currentPointIndex)
 {
 	if (_currentPointIndex % m_debugWorldDim == m_debugWorldDim - 1)
 	{
@@ -405,5 +327,149 @@ uint32_t Debug::GetIndexRight
 	else
 	{
 		return _currentPointIndex + 1;
+	}
+}
+
+/////////////////////				   ///////////////////////////////////////////////////////
+//////////////////   from RenderDelegate   ///////////////////////////////////////////////////
+/////////////////////				   //////////////////////////
+void Debug::DelegateDraw(SDL_Renderer * const _gRenderer) const
+{
+	switch (m_drawMode)
+	{
+	case DrawMode::Propagation:
+	{
+		uint32_t verticleBuffer = 128u;
+		uint32_t debugWorldWidth = Globals::WINDOW_HEIGHT - (2 * verticleBuffer);
+		uint32_t tileWidth = debugWorldWidth / m_debugWorldDim; //this line rounds down from 18.82 to 18
+		uint32_t horizontalBuffer = (Globals::WINDOW_WIDTH - debugWorldWidth) / 2;
+
+		ValRGBA maxColour;
+		maxColour.r = 255;
+		maxColour.g = 140;
+		maxColour.b = 0;
+		maxColour.a = 255;
+		ValRGBA minColour;
+		minColour.r = 96;
+		minColour.g = 53;
+		minColour.b = 0;
+		minColour.a = 255;
+		uint32_t saturationVal = 16u;
+		ValRGBA colourIncrement = (maxColour - minColour) / saturationVal;
+
+		ValRGBA curColour;
+		uint32_t x = horizontalBuffer;
+		uint32_t y = verticleBuffer;
+		for (uint32_t i = 0; i < m_debugWorldSize; i++)
+		{
+			SDL_Rect rect;
+			rect.x = x;
+			rect.y = y;
+			rect.w = tileWidth;
+			rect.h = tileWidth;
+
+			curColour = colourIncrement * m_debugWorld[i].m_energy; //@robustness - Will overflow for vals > 16
+			SDL_SetRenderDrawColor(_gRenderer, curColour.r, curColour.g, curColour.b, curColour.a);
+			SDL_RenderFillRect(_gRenderer, &rect); //@check - passing in a local ref, is c++ smart enough to preserve the allocation? a - works, though might be due to SDL function copying data from passed in reference object into render buffer
+
+			if (x < horizontalBuffer + (m_debugWorldDim - 1)*tileWidth)
+			{
+				x += tileWidth;
+			}
+			else
+			{
+				//start new row
+				x = horizontalBuffer;
+				y += tileWidth;
+			}
+		}
+
+		break;
+	}
+	case DrawMode::Tessalation:
+	{
+		SDL_Point points[3000];
+		Uint32 i = 0;
+		for (Uint32 x = 0; x <= Globals::WINDOW_WIDTH;)
+		{
+			for (Uint32 y = 0; y <= Globals::WINDOW_HEIGHT;)
+			{
+				Uint32 offset = 0;
+				if (y / 16 & 1) //checking for odd row through Least Sig Bit
+				{
+					offset = 8;
+				}
+
+				points[i].x = x + offset;
+				points[i].y = y;
+
+				i++;
+				y += 16;
+			}
+
+			x += 16;
+		}
+
+		SDL_SetRenderDrawColor(_gRenderer, 255, 255, 255, 255);
+		//SDL_RenderDrawLines(m_gRenderer, points, i);
+		SDL_RenderDrawPoints(_gRenderer, points, i);
+
+		break;
+	}
+	}
+}
+
+/////////////////////				   ///////////////////////////////////////////////////////
+//////////////////   from InputDelegate   ///////////////////////////////////////////////////
+/////////////////////				   //////////////////////////
+void Debug::DefineHeldInput()
+{
+	if (m_inputCoreIF.IsPressed(SDL_SCANCODE_LEFT))
+	{
+		//@TODO: Decrement propagation step
+		printf("Left Pressed Debug Mode\n");
+	}
+	if (m_inputCoreIF.IsPressed(SDL_SCANCODE_RIGHT))
+	{
+		//@TODO: Increment propagation step
+		printf("Right Pressed Debug Mode\n");
+	}
+}
+
+void Debug::KeyPressedInput(SDL_Scancode const& _key)
+{
+	if (_key == SDL_SCANCODE_T)
+	{
+		m_drawMode = DrawMode::Tessalation;
+	}
+	//cycle between propagation modes
+	if (_key == SDL_SCANCODE_O)
+	{
+		CyclePropModeRight();
+	}
+	if (_key == SDL_SCANCODE_P)
+	{
+		CyclePropModeLeft();
+	}
+	// propagate debug control
+	if (_key == SDL_SCANCODE_LEFT)
+	{
+		//UnpropagateAdjacent(); @Fix
+	}
+	if (_key == SDL_SCANCODE_RIGHT)
+	{
+		PropagateAdjacent();
+	}
+	if (_key == SDL_SCANCODE_SPACE)
+	{
+
+	}
+}
+
+void Debug::KeyReleasedInput(SDL_Scancode const& _key)
+{
+	if (_key == SDL_SCANCODE_T)
+	{
+		m_drawMode = DrawMode::Propagation;
 	}
 }
