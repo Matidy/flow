@@ -71,13 +71,34 @@ int main(int argc, char* args[])
 			//test code section
 			{
 				/*
-				char const * stringA = (char *)"Test String";
-				char stringB[18] = "You what my child";
-				char *stringC = (char*)"Ey up";
+				class BaseA
+				{
+				public:
+					BaseA() {}
+					virtual ~BaseA() { printf("Destructing BaseA\n"); }
+				};
+				class BaseB
+				{
+				public:
+					BaseB() {}
+					virtual ~BaseB() { printf("Destructing BaseB\n"); }
+				};
+				class Derived :
+					public BaseA,
+					public BaseB
+				{
+				public:
+					Derived() {}
+					~Derived() { printf("Destructing Derived\n"); }
+				};
+				
+				Derived* deri = new Derived;
+				BaseA* base = deri;
 
-				stringB = stringC;
+				delete base;
 
-				int32_t d = 1;
+				unsigned int i = 0;
+				i++;
 				*/
 			}
 

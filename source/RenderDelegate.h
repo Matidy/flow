@@ -7,7 +7,7 @@ class RenderDelegate
 {
 public:
 	RenderDelegate(RenderCoreIF& _renderCore, bool _startEnabled = true);
-	~RenderDelegate();
+	virtual ~RenderDelegate();
 
 	//params - _enabled - true to enable, false to disable
 	bool const& ToggleRender(bool const _enabled) { return m_enabled = _enabled; }
