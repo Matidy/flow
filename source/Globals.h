@@ -9,6 +9,7 @@ struct Globals
 	static constexpr uint32_t WORLD_X_SIZE = 1 << 12; //4096
 	static constexpr uint32_t WORLD_Y_SIZE = 1 << 12; //4096
 	static constexpr uint32_t TOTAL_WORLD_SIZE = WORLD_X_SIZE * WORLD_Y_SIZE; //16,777,216
+	static constexpr uint32_t TILE_DRAW_DIMENSIONS = 12;
 
 	//Window dimension constant
 	static constexpr uint32_t WINDOW_WIDTH = 1024u;

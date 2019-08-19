@@ -1,5 +1,6 @@
 #include "Globals.h"
 #include "Data/flPoint.h"
+#include "Data/flVec2.h"
 #include "RenderDelegate.h"
 #include "InputDelegate.h"
 
@@ -12,10 +13,11 @@ class WorldGrid :
 {
 public:
 	//from RenderDelegate
-	void virtual DelegateDraw(SDL_Renderer * const _gRenderer) const override final;
+	virtual void DelegateDraw(SDL_Renderer * const _gRenderer) const override final;
 
 	//from InputDelegate
-	void virtual DefineHeldInput() override final;
+	virtual void DefineHeldInput() override final;
+	virtual void KeyPressedInput(SDL_Scancode const& _key) override final;
 
 	WorldGrid(RenderCoreIF& _renderCoreIF, InputCoreIF& _inputCoreIF);
 	~WorldGrid();
@@ -24,6 +26,8 @@ public:
 	bool UpdateStep(uint32_t const _timeStep);
 
 private:
+	flVec2<float> const GetCenterToEdgeOffsets() const;
+
 	flPoint& GetPointUp(uint32_t _currentPointIndex);
 	flPoint& GetPointDown(uint32_t _currentPointIndex);
 	flPoint& GetPointLeft(uint32_t _currentPointIndex);
@@ -40,13 +44,17 @@ private:
 
 	struct CullingViewport
 	{
-		flVec2 m_pos;
-		uint32_t m_width = Globals::WINDOW_WIDTH;
-		uint32_t m_height = Globals::WINDOW_HEIGHT;
+		flVec2<float> m_pos;
+		float m_xExtension = static_cast<float>(Globals::WINDOW_WIDTH)/2; //deviation from m_pos left and right to define extent of viewport
+		float m_yExtension = static_cast<float>(Globals::WINDOW_HEIGHT)/2; //deviation from m_pos up and down to define extent of viewport
 
-		CullingViewport(flVec2 _pos)
+		CullingViewport(flVec2<float> _pos)
 			: m_pos(_pos)
 		{}
 	};
 	CullingViewport m_cullingViewport;
+
+	int m_border = 0;
+	flVec2<int> m_linePos1 = flVec2<int>(Globals::WINDOW_WIDTH / 2, 0);
+	flVec2<int> m_linePos2 = flVec2<int>(Globals::WINDOW_WIDTH / 2, Globals::WINDOW_HEIGHT-1);
 };

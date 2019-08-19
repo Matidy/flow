@@ -2,10 +2,11 @@
 
 #ifndef FL_VEC2
 #define FL_VEC2
+template<typename T>
 struct flVec2
 {
 	//standard 2D vector
-	int32_t x, y;
+	T x, y;
 
 	flVec2()
 		:
@@ -15,8 +16,8 @@ struct flVec2
 
 	flVec2
 	(
-		int32_t _x, 
-		int32_t _y
+		T _x, 
+		T _y
 	)
 		: 
 		x(_x),

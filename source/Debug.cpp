@@ -262,7 +262,7 @@ void Debug::UnpropagateAdjacent()
 void Debug::ResetWorldGrid()
 {
 	uint32_t centerIndex = m_debugWorldDim % 2 ? m_debugWorldDim / 2 + 1 : m_debugWorldDim / 2;
-	for (uint8_t i = 0; i < m_debugWorldDim*m_debugWorldDim; i++)
+	for (uint16_t i = 0; i < m_debugWorldDim*m_debugWorldDim; i++)
 	{
 		if (i != centerIndex)
 		{

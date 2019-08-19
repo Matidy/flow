@@ -21,7 +21,7 @@ public:
 
 	//store both direction and speed as one in single Vec2 (i.e. how far energy will move per timestep & in
 	//what direction)
-	flVec2 m_velocityVector;
+	flVec2<uint32_t> m_velocityVector;
 
 	//whether or not this point reflects all energy that interacts with it, i.e. if it is 'moveable' or not
 	bool m_moveable;
@@ -40,7 +40,7 @@ public:
 	flPoint
 	(
 		int32_t _energy,
-		flVec2 _velVec,
+		flVec2<uint32_t> _velVec,
 		bool _moveable
 	)
 		: m_energy(_energy),
@@ -50,7 +50,7 @@ public:
 
 	flPoint()
 		: m_energy(0),
-		m_velocityVector(flVec2()),
+		m_velocityVector(flVec2<uint32_t>()),
 		m_moveable(true)
 	{}
 
