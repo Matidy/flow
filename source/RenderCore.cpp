@@ -203,8 +203,8 @@ bool const RenderCore::FadingTextLabel::ProcessFade
 		if (m_fadeAccumulator >= 1.f)
 		{
 			//transfer whole num value from accumulator to decrementVal for processing
-			uint32_t decrementVal = static_cast<uint32_t>(floor(m_fadeAccumulator));
-			m_fadeAccumulator -= floor(m_fadeAccumulator);
+			uint32_t decrementVal = static_cast<uint32_t>(floorf(m_fadeAccumulator));
+			m_fadeAccumulator -= floorf(m_fadeAccumulator);
 
 			if (m_colour.a > decrementVal)
 				m_colour.a -= decrementVal;

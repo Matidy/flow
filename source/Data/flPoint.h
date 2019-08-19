@@ -34,7 +34,7 @@ public:
 		LEFT,
 		RIGHT,
 		ALL
-	} m_direction;
+	} m_direction = ALL;
 	
 
 	flPoint

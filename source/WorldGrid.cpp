@@ -1,4 +1,5 @@
 #include <cstdlib>
+#include <iostream>
 
 #include <SDL_render.h>
 #include "WorldGrid.h"
@@ -355,11 +356,11 @@ void WorldGrid::DefineHeldInput()
 {
 	if (m_inputCoreIF.IsPressed(SDL_SCANCODE_LEFT))
 	{
-		printf("Left Pressed Game Mode\n");
+		std::cout << "Left Pressed Game Mode" << std::endl;
 	}
 	if (m_inputCoreIF.IsPressed(SDL_SCANCODE_RIGHT))
 	{
-		printf("Right Pressed Game Mode\n");
+		std::cout << "Right Pressed Game Mode" << std::endl;
 	}
 }
 
