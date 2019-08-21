@@ -39,22 +39,20 @@ private:
 	//     - add more world to left of existing world: if new world data is B and old is A then expansion
 	//       pattern of world data is from [Ar1-Ar2-Ar3...Arn] to [Br1-Ar1-Br2-Ar2-Br3-Ar3...Brn-Arn].
 	flPoint* m_worldGrid;
-
 	flPoint m_nullPoint;
 
 	struct CullingViewport
 	{
+		static constexpr float m_aspectRatio = static_cast<float>(Globals::WINDOW_HEIGHT) / static_cast<float>(Globals::WINDOW_WIDTH);
+
 		flVec2<float> m_pos;
-		float m_xExtension = static_cast<float>(Globals::WINDOW_WIDTH)/2; //deviation from m_pos left and right to define extent of viewport
-		float m_yExtension = static_cast<float>(Globals::WINDOW_HEIGHT)/2; //deviation from m_pos up and down to define extent of viewport
+		float m_xExtension = static_cast<float>(Globals::TILE_DRAW_DIMENSIONS*Globals::WORLD_X_SIZE)/8.f; //deviation from m_pos left and right to define extent of viewport
+		float m_yExtension = m_xExtension * m_aspectRatio;												  //deviation from m_pos up and down to define extent of viewport
+		//as long as m_xExtension >= 16 and a power of 2, and we're using a 16:9 aspect ratio, then m_yExtension will be a whole number
 
 		CullingViewport(flVec2<float> _pos)
 			: m_pos(_pos)
 		{}
 	};
 	CullingViewport m_cullingViewport;
-
-	int m_border = 0;
-	flVec2<int> m_linePos1 = flVec2<int>(Globals::WINDOW_WIDTH / 2, 0);
-	flVec2<int> m_linePos2 = flVec2<int>(Globals::WINDOW_WIDTH / 2, Globals::WINDOW_HEIGHT-1);
 };
