@@ -29,6 +29,8 @@ Debug::Debug(RenderCoreIF& _renderCoreIF, InputCoreIF& _inputCoreIF)
 
 	m_pointsToPropagate.push_back(centerIndex);
 
+	m_tessalationPoints = new SDL_Point[3000];
+
 	//@TODO - would be good to have a debug mode where we can cycle through different resolutions of grid to get a real feel
 	//		  for each resolution.
 }
@@ -41,6 +43,7 @@ Debug::~Debug()
 	//		  gets propagated.
 	//action - going to leave for now as expect to rewrite prop code at later date
 	delete[] m_debugWorld;
+	delete[] m_tessalationPoints;
 }
 
 void Debug::UpdateStep(uint32_t const _timeStep)
@@ -388,7 +391,6 @@ void Debug::DelegateDraw(SDL_Renderer * const _gRenderer) const
 	}
 	case DrawMode::Tessalation:
 	{
-		SDL_Point points[3000];
 		Uint32 i = 0;
 		for (Uint32 x = 0; x <= Globals::WINDOW_WIDTH;)
 		{
@@ -400,8 +402,8 @@ void Debug::DelegateDraw(SDL_Renderer * const _gRenderer) const
 					offset = 8;
 				}
 
-				points[i].x = x + offset;
-				points[i].y = y;
+				m_tessalationPoints[i].x = x + offset;
+				m_tessalationPoints[i].y = y;
 
 				i++;
 				y += 16;
@@ -412,7 +414,7 @@ void Debug::DelegateDraw(SDL_Renderer * const _gRenderer) const
 
 		SDL_SetRenderDrawColor(_gRenderer, 255, 255, 255, 255);
 		//SDL_RenderDrawLines(m_gRenderer, points, i);
-		SDL_RenderDrawPoints(_gRenderer, points, i);
+		SDL_RenderDrawPoints(_gRenderer, m_tessalationPoints, i);
 
 		break;
 	}
@@ -422,7 +424,7 @@ void Debug::DelegateDraw(SDL_Renderer * const _gRenderer) const
 /////////////////////				   ///////////////////////////////////////////////////////
 //////////////////   from InputDelegate   ///////////////////////////////////////////////////
 /////////////////////				   //////////////////////////
-void Debug::DefineHeldInput()
+void Debug::DefineHeldInput(uint32_t _timeStep)
 {
 	if (m_inputCoreIF.IsPressed(SDL_SCANCODE_LEFT))
 	{

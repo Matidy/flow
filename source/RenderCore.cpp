@@ -1,5 +1,7 @@
 #include "RenderCore.h"
 
+#include <iostream>
+
 #include <SDL_video.h>
 #include <SDL_render.h>
 #include <SDL_ttf.h>
@@ -104,27 +106,36 @@ void RenderCore::DrawUpdate(GameData const& _gameData, uint32_t _timeStep)
 void RenderCore::ProcessTextLabels(uint32_t const _timeStep)
 {
 	TTF_Font* raleway = TTF_OpenFont("../SDL2_ttf-2.0.15/external/fonts/raleway/Raleway-Regular.ttf", 24); //@TODO - need to decide if font files should be included in working directory to avoid releative path issues like this.
-
+	
 	std::vector<RenderCore::FadingTextLabel>::iterator iter = m_textLabels.begin();
 	for (; iter != m_textLabels.end();)
 	{
-		RenderCore::FadingTextLabel& textLabel = *iter;
-		SDL_Surface* labelSurface = TTF_RenderText_Blended(raleway, textLabel.m_text.data(), textLabel.m_colour);
-		SDL_Texture* labelTexture = SDL_CreateTextureFromSurface(m_gRenderer, labelSurface);
-		SDL_FreeSurface(labelSurface);
-		labelSurface = nullptr;
-
-		SDL_RenderCopy(m_gRenderer, labelTexture, nullptr, &textLabel.m_displayRect);
-
-		//process fade, i.e. alpha value changes for our labels. Labels removed if alpha == 0.
-		if (textLabel.ProcessFade(_timeStep))
+		if (raleway)
 		{
-			//@consider - due to destructive nature of erase, better way to do loops like this might be to have some 'tag for removal' feature, and then to do one array pass/rearrangment at the end that removes all the tagged entries.
-			iter = m_textLabels.erase(iter); 
+			RenderCore::FadingTextLabel& textLabel = *iter;
+			SDL_Surface* labelSurface = TTF_RenderText_Blended(raleway, textLabel.m_text.data(), textLabel.m_colour);
+			SDL_Texture* labelTexture = SDL_CreateTextureFromSurface(m_gRenderer, labelSurface);
+			SDL_FreeSurface(labelSurface);
+			labelSurface = nullptr;
+
+			SDL_RenderCopy(m_gRenderer, labelTexture, nullptr, &textLabel.m_displayRect);
+
+			//process fade, i.e. alpha value changes for our labels. Labels removed if alpha == 0.
+			if (textLabel.ProcessFade(_timeStep))
+			{
+				//@consider - due to destructive nature of erase, better way to do loops like this might be to have some 'tag for removal' feature, and then to do one array pass/rearrangment at the end that removes all the tagged entries.
+				iter = m_textLabels.erase(iter);
+			}
+			else
+			{
+				++iter;
+			}
 		}
 		else
 		{
-			++iter;
+			std::cout << "Missing font when trying to draw TextLabels." << std::endl;
+			m_textLabels.clear();
+			break;
 		}
 	}
 

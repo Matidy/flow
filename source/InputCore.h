@@ -19,7 +19,7 @@ public:
 	InputCore();
 
 	void UpdateKeyboardState(SDL_Event const& _e);
-	void CheckHeldKeyboardInput();
+	void CheckHeldKeyboardInput(uint32_t _timeStep);
 
 #ifdef _DEBUG
 	bool const InputBatchEnabled() const;

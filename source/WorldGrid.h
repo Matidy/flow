@@ -16,7 +16,7 @@ public:
 	virtual void DelegateDraw(SDL_Renderer * const _gRenderer) const override final;
 
 	//from InputDelegate
-	virtual void DefineHeldInput() override final;
+	virtual void DefineHeldInput(uint32_t _timeStep) override final;
 	virtual void KeyPressedInput(SDL_Scancode const& _key) override final;
 
 	WorldGrid(RenderCoreIF& _renderCoreIF, InputCoreIF& _inputCoreIF);
@@ -43,16 +43,26 @@ private:
 
 	struct CullingViewport
 	{
-		static constexpr float m_aspectRatio = static_cast<float>(Globals::WINDOW_HEIGHT) / static_cast<float>(Globals::WINDOW_WIDTH);
+		static constexpr float m_xExtensionDefault = static_cast<float>(Globals::TILE_DRAW_DIMENSIONS*Globals::WORLD_X_SIZE) + 16.f;
+		static constexpr float m_yExtensionDefault = m_xExtensionDefault * Globals::WINDOW_ASPECT_RATIO;
+		//as long as m_xExtension >= 16, is a power of 2, and we're using a 16:9 aspect ratio, then m_yExtension will be a whole number
 
 		flVec2<float> m_pos;
-		float m_xExtension = static_cast<float>(Globals::TILE_DRAW_DIMENSIONS*Globals::WORLD_X_SIZE)/8.f; //deviation from m_pos left and right to define extent of viewport
-		float m_yExtension = m_xExtension * m_aspectRatio;												  //deviation from m_pos up and down to define extent of viewport
-		//as long as m_xExtension >= 16 and a power of 2, and we're using a 16:9 aspect ratio, then m_yExtension will be a whole number
+		float m_xExtension = m_xExtensionDefault; //deviation from m_pos left and right to define extent of viewport
+		float m_yExtension = m_yExtensionDefault; //deviation from m_pos up and down to define extent of viewport
 
+#ifdef _DEBUG
+		float m_debugPanIncrement = 0.5f;
+#endif
 		CullingViewport(flVec2<float> _pos)
 			: m_pos(_pos)
 		{}
+
+		void Reset() { m_pos.x = 0.f; m_pos.y = 0.f; m_xExtension = m_xExtensionDefault; m_yExtension = m_yExtensionDefault; }
+
 	};
 	CullingViewport m_cullingViewport;
+
+	float m_panSpeed = 2.f;
+	float m_zoomSpeed = 1.f;
 };

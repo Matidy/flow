@@ -37,9 +37,9 @@ bool WorldGrid::GenerateWorld
 	{
 		flPoint& p = m_worldGrid[i];
 		//// generation methods //////////////////////
-		p.m_energy = (i + ((i/Globals::WORLD_X_SIZE)%2)) % 2; //each tile checkerboard
+		/*p.m_energy = (i + ((i/Globals::WORLD_X_SIZE)%2)) % 2;*/ //1 dim checkerboard
 
-		/*p.m_energy = rand() % 2;*/ //random
+		p.m_energy = rand() % 2; //random
 		////////////////////////////////
 		p.m_velocityVector = flVec2<uint32_t>(0, 0);
 	}
@@ -197,27 +197,23 @@ uint32_t FloatToPixelsY(float const _inputDimension, bool const _zeroAccumulator
 
 void WorldGrid::DelegateDraw(SDL_Renderer * const _gRenderer) const
 {
-	//1. Using m_worldGrid, find every flPoint within m_cullingViewport's bounds.
-	//2. For each sqaure, create a draw square
-	//		i. for sqaures at edge of viewport, set edge points to be equal to culling bounds.
+	//// Drawing world points within m_cullingViewport. Currently using squares to represent points through SDL's 2D rendering API
+	//// WorldGrid tiles do not have dimensions within a space, only a position within a 2D array/grid. As such, m_cullingViewport's
+	//// dimensions are defined in terms of points it covers. m_cullingViewport's dimensions are floats as it is possible for it to
+	//// only partially contain a point row/column as it zooms and moves about the world points. Algorithm is below in parts:
+	////	1. For each bound of the viewport (top, bottom, left, right), 
+	////		i.  find the row/column that contains the bound.
+	////		ii. calculate how much of that row/column is within the bound
+	////	2. If the viewport bound is beyond the corresponding edge of the world, calculate the distance between the two
+	////	3. Draw the points within the viewport bounds as squares
+	////		i.  move the starting draw point to the point at the distance between the viewport edge and the world edge (as calculated in 2.)
+	////		ii. for each point within the viewport (found in one), draw a square, such that the viewport fills the entire window.
 
-	//- trying to figure out how to do coordintes and position when comparing m_worldGrid and m_cullingViewport. Is looking at
-	//  difference between worldDimensions and pixelDimensions. Thinking shouldn't consider tiles as pixels such that each can be
-	//  broken down into a sub group of pixels for rendering and have the pixel representation scaled as desired.
-	//- screen in only thing that has concept of coordinates. World has local position relative to its tile neighbours but doesn't
-	//  need to have a concept of coordinates in any way.
-	//- if worldGrid tiles don't have a concept of space, how can we say which ones are within a boundary?
-	//		- impose tile/point concept of space at rendering stage
-	//			1. tiles have a fixed size.
-	//			2. center of world is always the point at half the world width and half the world height.
+	flVec2<float> const offsetsFromCenterToEdge = GetCenterToEdgeOffsets(); //number of points from center of world to edge
 
-	//Then - cull all tiles with no part within culling viewport, go top, bottom, left, right as due to 1D layout can slice
-	//		 beginning and end of array to do top and bottom cull without having to stitch non-contiguous blocks to get culled
-	//		 world array.
-	//     - float option for flVec2 as should really be using floats when regularly dividing values.
-
-	flVec2<float> const offsetsFromCenterToEdge = GetCenterToEdgeOffsets();
-
+	////////////
+	//// 1.
+	////////
 	//get row index for FIRST ROW INSIDE viewport and how much height off that row is not culled
 	uint32_t topNonCulledRowIndex = 0; //start from top most row
 	float topRowHeightWithinBound = static_cast<float>(Globals::TILE_DRAW_DIMENSIONS); //assume all of row is within bounds to start
@@ -225,8 +221,7 @@ void WorldGrid::DelegateDraw(SDL_Renderer * const _gRenderer) const
 		float viewportTopY = m_cullingViewport.m_pos.y + m_cullingViewport.m_yExtension;
 		float curRowBottomY = offsetsFromCenterToEdge.y - static_cast<float>(Globals::TILE_DRAW_DIMENSIONS); //start with bottom edge of top row
 
-		//move down through rows until we find one at least partly within cull boundary
-		while (curRowBottomY >= viewportTopY)
+		while (curRowBottomY >= viewportTopY) //move down through rows until we find one at least partly within cull boundary
 		{
 			//current row is totally outside culling boundary, move down one row
 			topNonCulledRowIndex++;
@@ -240,7 +235,7 @@ void WorldGrid::DelegateDraw(SDL_Renderer * const _gRenderer) const
 		float curRowTopY = curRowBottomY + static_cast<float>(Globals::TILE_DRAW_DIMENSIONS);
 		if (viewportTopY < curRowTopY)
 		{
-			topRowHeightWithinBound -= abs(viewportTopY - curRowBottomY);
+			topRowHeightWithinBound -= abs(curRowTopY - viewportTopY);
 		}
 	}
 	//get row index for LAST ROW INSIDE viewport, and how much height off that row is not culled
@@ -250,8 +245,7 @@ void WorldGrid::DelegateDraw(SDL_Renderer * const _gRenderer) const
 		float viewportBottomY = m_cullingViewport.m_pos.y - m_cullingViewport.m_yExtension;
 		float curRowTopY = -offsetsFromCenterToEdge.y + static_cast<float>(Globals::TILE_DRAW_DIMENSIONS); //start with top edge of bottom row
 
-		//move up through rows until we find one at least partly within cull boundary
-		while (curRowTopY <= viewportBottomY)
+		while (curRowTopY <= viewportBottomY) //move up through rows until we find one at least partly within cull boundary
 		{
 			//current row is totally outside culling boundary, move up one row
 			bottomNonCulledRowIndex--;
@@ -265,7 +259,7 @@ void WorldGrid::DelegateDraw(SDL_Renderer * const _gRenderer) const
 		float curRowBottomY = curRowTopY - static_cast<float>(Globals::TILE_DRAW_DIMENSIONS);
 		if (viewportBottomY > curRowBottomY)
 		{
-			bottomRowHeightWithinBound -= abs(viewportBottomY - curRowTopY);
+			bottomRowHeightWithinBound -= abs(curRowBottomY - viewportBottomY);
 		}
 	}
 	//get column index for LEFT-MOST COLUMN INSIDE viewport, and how much width off that column is not culled
@@ -275,8 +269,7 @@ void WorldGrid::DelegateDraw(SDL_Renderer * const _gRenderer) const
 		float viewportLeftX = m_cullingViewport.m_pos.x - m_cullingViewport.m_xExtension;
 		float curColRightX = -offsetsFromCenterToEdge.x + static_cast<float>(Globals::TILE_DRAW_DIMENSIONS); //start with right edge of left-most column
 
-		//move right through columns until we find one at least partly within cull boundary
-		while (curColRightX <= viewportLeftX)
+		while (curColRightX <= viewportLeftX) //move right through columns until we find one at least partly within cull boundary
 		{
 			//current col is totally outside culling boundary, move right one col
 			leftNonCulledColIndex++;
@@ -290,7 +283,7 @@ void WorldGrid::DelegateDraw(SDL_Renderer * const _gRenderer) const
 		float curColLeftX = curColRightX - static_cast<float>(Globals::TILE_DRAW_DIMENSIONS);
 		if (viewportLeftX > curColLeftX)
 		{
-			leftColWidthWithinBound -= abs(viewportLeftX - curColRightX);
+			leftColWidthWithinBound -= abs(curColLeftX - viewportLeftX);
 		}
 	}
 	//get column index for RIGHT-MOST COLUMN INSIDE viewport, and how much width off that column is not culled
@@ -299,9 +292,8 @@ void WorldGrid::DelegateDraw(SDL_Renderer * const _gRenderer) const
 	{
 		float viewportRightX = m_cullingViewport.m_pos.x + m_cullingViewport.m_xExtension;
 		float curColLeftX = offsetsFromCenterToEdge.x - static_cast<float>(Globals::TILE_DRAW_DIMENSIONS); //start with left edge of right-most column
-
-		//move left through columns until we find one at least partly within cull boundary
-		while (curColLeftX >= viewportRightX)
+		
+		while (curColLeftX >= viewportRightX) //move left through columns until we find one at least partly within cull boundary
 		{
 			//current col is totally outside culling boundary, move left one col
 			rightNonCulledColIndex--;
@@ -315,11 +307,14 @@ void WorldGrid::DelegateDraw(SDL_Renderer * const _gRenderer) const
 		float curColRightX = curColLeftX + static_cast<float>(Globals::TILE_DRAW_DIMENSIONS);
 		if (viewportRightX < curColRightX)
 		{
-			rightColWidthWithinBound -= abs(viewportRightX - curColLeftX);
+			rightColWidthWithinBound -= abs(curColRightX - viewportRightX);
 		}
 	}
 
-	//if viewport totally contains world, get border between edge of world and viewport bounds
+	////////////
+	//// 2.
+	////////
+	//if viewport totally contains world, get border between viewport bounds and edge of world (only need top and left as drawing starts from top-left of screen)
 	//top
 	float distTopViewportToWorld = 0.f;
 	if (offsetsFromCenterToEdge.y < m_cullingViewport.m_pos.y + m_cullingViewport.m_yExtension)
@@ -329,61 +324,37 @@ void WorldGrid::DelegateDraw(SDL_Renderer * const _gRenderer) const
 	if (-offsetsFromCenterToEdge.x > m_cullingViewport.m_pos.x - m_cullingViewport.m_xExtension)
 		distLeftViewportToWorld = abs((m_cullingViewport.m_pos.x - m_cullingViewport.m_xExtension) + offsetsFromCenterToEdge.x); 
 
-	//@cleanup - don't need these two as start drawing world from top left
-	/*
-	//bottom
-	float distBottomWorldToViewport = 0.f;
-	if (-offsetsFromCenterToEdge.y > m_cullingViewport.m_pos.y - m_cullingViewport.m_yExtension)
-		distBottomWorldToViewport = (m_cullingViewport.m_pos.y - m_cullingViewport.m_yExtension) + offsetsFromCenterToEdge.y; //previous line allows guarantee that viewport bottom bound is negative
-	*/
-	/*
-	//right
-	float distRightWorldToViewport = 0.f;
-	if (offsetsFromCenterToEdge.x < m_cullingViewport.m_pos.x + m_cullingViewport.m_xExtension)
-		distRightWorldToViewport = (m_cullingViewport.m_pos.x + m_cullingViewport.m_xExtension) - offsetsFromCenterToEdge.x;
-	*/
-
-	//@consider - probably shouldn't use float values when doing culling operations as will then have to convert from float to int values when scaling culled worldGrid to
-	//			  our window/screen's pixel array. Using floats obfuscates whole process and makes rounding errors/skipped pixels possible.
-	/*
-	float nonCulledWorldWidth = static_cast<float>((rightNonCulledColIndex - leftNonCulledColIndex - 1)*Globals::TILE_DRAW_DIMENSIONS) + leftColWidthWithinBound + rightColWidthWithinBound;
-	//given tiles are square, calc how many pixels high/wide we should draw each tile to fill the screen
-	float pixelsPerTileDim = static_cast<float>(Globals::WINDOW_WIDTH)
-						   / nonCulledWorldWidth; 
-	*/
-
-	//@next - is this the correct way to scale from viewport/world dimensions to screen dimensions?
-	
-
-	////    INDEXING 1D array as 2D  //////////////////////////////////////////////////
-	////  indexs are read from Top-Left to Bottom-Right
-	////  general indexing rule  -  (row * WORLD_X_SIZE) + col
-	////
-	////				   index  ->  (row, col)		  
-	////					   0  ->  (0, 0)													  
-	////		1 * WORLD_X_SIZE  ->  (1, 0)
-	////					   4  ->  (0, 4)
-	////  17 * WORLD_X_SIZE + 84  ->  (17, 84)	-	indexing the element in the 18th row, 85th column
-	////
-	////  index / WORLD_X_SIZE	  ->	rowIndex (ignoring remainder/flooring output)
-	////  index % WORLD_X_SIZE	  ->	columnIndex
-	////
-	///////////////////////////////////////////////////////////////
-	////    SDL Rendering  //////////////////////////////////////////////////////////
-	////  Render coordinates start at (0, 0) from the top left of the window.
-	////  Window's pixel array starts at index (0, 0) and goes to (WINDOW_WIDTH-1, WINDOW_HEIGHT-1).
-	////  Globals::WINDOW_WIDTH and WINDOOW_HEIGHT are passed into SDL_CreateWindow(...) so are literally the pixel
-	////  dimensions of the Window that gets displayed on screen (i.e. same dimensions will take up a larger screen space
-	////  on smaller monitors).
-	////
-	///////////////////////////////////////////////////////////////
-	
-	
+	////////////
+	//// 3.
+	////////
 	if (topNonCulledRowIndex < Globals::WORLD_Y_SIZE
 		&& bottomNonCulledRowIndex >= 0
 		&& leftNonCulledColIndex < Globals::WORLD_X_SIZE
 		&& rightNonCulledColIndex >= 0) //check viewport actually contains some part of the world
 	{
+		////    INDEXING 1D array as 2D  //////////////////////////////////////////////////
+		////  indexs are read from Top-Left to Bottom-Right
+		////  general indexing rule  -  (row * WORLD_X_SIZE) + col
+		////
+		////				   index  ->  (row, col)		  
+		////					   0  ->  (0, 0)													  
+		////		1 * WORLD_X_SIZE  ->  (1, 0)
+		////					   4  ->  (0, 4)
+		////  17 * WORLD_X_SIZE + 84  ->  (17, 84)	-	indexing the element in the 18th row, 85th column
+		////
+		////  index / WORLD_X_SIZE	  ->	rowIndex (ignoring remainder/flooring output)
+		////  index % WORLD_X_SIZE	  ->	columnIndex
+		////
+		///////////////////////////////////////////////////////////////
+		////    SDL Rendering  //////////////////////////////////////////////////////////
+		////  Render coordinates start at (0, 0) from the top left of the window.
+		////  Window's pixel array starts at index (0, 0) and goes to (WINDOW_WIDTH-1, WINDOW_HEIGHT-1).
+		////  Globals::WINDOW_WIDTH and WINDOOW_HEIGHT are passed into SDL_CreateWindow(...) so are literally the pixel
+		////  dimensions of the Window that gets displayed on screen (i.e. same dimensions will take up a larger screen space
+		////  on smaller monitors).
+		////
+		///////////////////////////////////////////////////////////////
+
 		float viewportToWindowScalar = Globals::WINDOW_WIDTH / (m_cullingViewport.m_xExtension * 2);
 		float pixelsPerTileDim = Globals::TILE_DRAW_DIMENSIONS * viewportToWindowScalar;
 
@@ -393,8 +364,6 @@ void WorldGrid::DelegateDraw(SDL_Renderer * const _gRenderer) const
 		drawRect.x = 0u + FloatToPixelsX(pixelsLeftWorldBorder, true);
 		drawRect.y = 0u + FloatToPixelsY(pixelsTopWorldBorder, true);
 
-		drawRect.h = FloatToPixelsY(pixelsPerTileDim); //calc height for first row
-
 		uint32_t currentRow = topNonCulledRowIndex;
 
 		//iterate through m_worldGrid and draw tiles within index bound
@@ -402,6 +371,18 @@ void WorldGrid::DelegateDraw(SDL_Renderer * const _gRenderer) const
 			index < bottomNonCulledRowIndex * Globals::WORLD_X_SIZE + (rightNonCulledColIndex + 1);  //index terminates at bottom-right element in non-culled part of grid
 			)
 		{
+			if (index % Globals::WORLD_X_SIZE == leftNonCulledColIndex)
+			{
+				//first element in row - set pixel height for this row			
+				float tilePixelHeight = pixelsPerTileDim;
+				if (index / Globals::WORLD_X_SIZE == topNonCulledRowIndex)
+					tilePixelHeight = topRowHeightWithinBound * viewportToWindowScalar;
+				if (index / Globals::WORLD_X_SIZE == bottomNonCulledRowIndex)
+					tilePixelHeight = bottomRowHeightWithinBound * viewportToWindowScalar;
+				drawRect.h = FloatToPixelsY(tilePixelHeight);
+			}
+
+			//set pixel width for this tile
 			float tilePixelWidth = pixelsPerTileDim;
 			if (index % Globals::WORLD_X_SIZE == leftNonCulledColIndex)
 				tilePixelWidth = leftColWidthWithinBound * viewportToWindowScalar;
@@ -439,14 +420,6 @@ void WorldGrid::DelegateDraw(SDL_Renderer * const _gRenderer) const
 				//at end of row, move down to first element of row below
 				drawRect.x = 0u + FloatToPixelsX(pixelsLeftWorldBorder, true);
 				drawRect.y += drawRect.h;
-				
-				//set height for next row
-				float tilePixelHeight = pixelsPerTileDim;
-				if (index / Globals::WORLD_X_SIZE == topNonCulledRowIndex)
-					tilePixelHeight = topRowHeightWithinBound * viewportToWindowScalar;
-				if (index / Globals::WORLD_X_SIZE == bottomNonCulledRowIndex)	
-					tilePixelHeight = bottomRowHeightWithinBound * viewportToWindowScalar;
-				drawRect.h = FloatToPixelsY(tilePixelHeight);
 
 				currentRow++;
 				index = currentRow * Globals::WORLD_X_SIZE + leftNonCulledColIndex;
@@ -458,50 +431,85 @@ void WorldGrid::DelegateDraw(SDL_Renderer * const _gRenderer) const
 /////////////////////				   ///////////////////////////////////////////////////////
 //////////////////   from InputDelegate   ///////////////////////////////////////////////////
 /////////////////////				   //////////////////////////
-void WorldGrid::DefineHeldInput()
+void WorldGrid::DefineHeldInput(uint32_t _timeStep)
 {
-#ifdef _DEBUG
-	if (m_inputCoreIF.IsPressed(SDL_SCANCODE_LEFT))
-	{
-		std::cout << "Left Pressed Game Mode" << std::endl;
-	}
-	if (m_inputCoreIF.IsPressed(SDL_SCANCODE_RIGHT))
-	{
-		std::cout << "Right Pressed Game Mode" << std::endl;
-	}
-#endif
-
 	//viewport controls - pan
 	if (m_inputCoreIF.IsPressed(SDL_SCANCODE_W) || m_inputCoreIF.IsPressed(SDL_SCANCODE_UP))
 	{
-		m_cullingViewport.m_pos.y += m_cullingViewport.m_yExtension * 0.05f;
+		m_cullingViewport.m_pos.y += m_cullingViewport.m_xExtension * m_panSpeed * (0.001f*_timeStep); //only using xExtension to get consistent move speed in all directions
 	}
 	if (m_inputCoreIF.IsPressed(SDL_SCANCODE_S) || m_inputCoreIF.IsPressed(SDL_SCANCODE_DOWN))
 	{
-		m_cullingViewport.m_pos.y -= m_cullingViewport.m_yExtension * 0.05f;
+		m_cullingViewport.m_pos.y -= m_cullingViewport.m_xExtension * m_panSpeed * (0.001f*_timeStep);
 	}
 	if (m_inputCoreIF.IsPressed(SDL_SCANCODE_A) || m_inputCoreIF.IsPressed(SDL_SCANCODE_LEFT))
 	{
-		m_cullingViewport.m_pos.x -= m_cullingViewport.m_xExtension * 0.05f;
+		m_cullingViewport.m_pos.x -= m_cullingViewport.m_xExtension * m_panSpeed * (0.001f*_timeStep);
 	}
 	if (m_inputCoreIF.IsPressed(SDL_SCANCODE_D) || m_inputCoreIF.IsPressed(SDL_SCANCODE_RIGHT))
 	{
-		m_cullingViewport.m_pos.x += m_cullingViewport.m_xExtension * 0.05f;
+		m_cullingViewport.m_pos.x += m_cullingViewport.m_xExtension * m_panSpeed * (0.001f*_timeStep);
 	}
 	//zoom in/out
 	if (m_inputCoreIF.IsPressed(SDL_SCANCODE_Q))
 	{
-		m_cullingViewport.m_xExtension = m_cullingViewport.m_xExtension * 1.01f;
-		m_cullingViewport.m_yExtension = m_cullingViewport.m_yExtension * 1.01f;
+		m_cullingViewport.m_xExtension = m_cullingViewport.m_xExtension * (1.f + (m_zoomSpeed * (0.001f*_timeStep)));
+		m_cullingViewport.m_yExtension = m_cullingViewport.m_yExtension * (1.f + (m_zoomSpeed * (0.001f*_timeStep)));
 	}
 	if (m_inputCoreIF.IsPressed(SDL_SCANCODE_E))
 	{
-		m_cullingViewport.m_xExtension = m_cullingViewport.m_xExtension * 0.99f;
-		m_cullingViewport.m_yExtension = m_cullingViewport.m_yExtension * 0.99f;
+		m_cullingViewport.m_xExtension = m_cullingViewport.m_xExtension * (1.f - (m_zoomSpeed * (0.001f*_timeStep)));
+		m_cullingViewport.m_yExtension = m_cullingViewport.m_yExtension * (1.f - (m_zoomSpeed * (0.001f*_timeStep)));
 	}
 }
 
 void WorldGrid::KeyPressedInput(SDL_Scancode const& _key)
 {
+	if (_key == SDL_SCANCODE_R)
+	{
+		m_cullingViewport.Reset();
+	}
 
+	//adjust cullingViewport pan speed
+	if (_key == SDL_SCANCODE_Z)
+	{
+		m_panSpeed -= 0.5f;
+		if (m_panSpeed < 0.f)
+		{
+			m_panSpeed = 0.f;
+		}
+	}
+	if (_key == SDL_SCANCODE_X)
+	{
+		m_panSpeed += 0.5f;
+	}
+
+#ifdef _DEBUG
+	//fixed increment debug panning
+	if (_key == SDL_SCANCODE_Y)
+	{
+		m_cullingViewport.m_pos.y += m_cullingViewport.m_debugPanIncrement;
+	}
+	if (_key == SDL_SCANCODE_H)
+	{
+		m_cullingViewport.m_pos.y -= m_cullingViewport.m_debugPanIncrement;
+	}
+	if (_key == SDL_SCANCODE_G)
+	{
+		m_cullingViewport.m_pos.x -= m_cullingViewport.m_debugPanIncrement;
+	}
+	if (_key == SDL_SCANCODE_J)
+	{
+		m_cullingViewport.m_pos.x += m_cullingViewport.m_debugPanIncrement;
+	}
+	//adjust fixed increment
+	if (_key == SDL_SCANCODE_T)
+	{
+		m_cullingViewport.m_debugPanIncrement -= 0.1f;
+	}
+	if (_key == SDL_SCANCODE_U)
+	{
+		m_cullingViewport.m_debugPanIncrement += 0.1f;
+	}
+#endif
 }

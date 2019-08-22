@@ -17,7 +17,7 @@ public:
 	virtual void DelegateDraw(SDL_Renderer * const _gRenderer) const override final;
 
 	//from InputDelegate
-	virtual void DefineHeldInput() override final;
+	virtual void DefineHeldInput(uint32_t _timeStep) override final;
 	virtual void KeyPressedInput(SDL_Scancode const& _key) override final;
 	virtual void KeyReleasedInput(SDL_Scancode const& _key) override final;
 
@@ -52,6 +52,8 @@ private:
 
 	flPoint* m_debugWorld;
 	bool m_debugEnabled;
+
+	SDL_Point* m_tessalationPoints;
 
 	float m_propagationRate;
 	std::vector<uint32_t> m_pointsToPropagate;

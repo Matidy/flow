@@ -108,10 +108,10 @@ int main(int argc, char* args[])
 			Uint32 deltaTime;
 			while (!quit)
 			{
-				// Frame Rate Cap //
 				timeLastFrame = currentTime;
 				currentTime = SDL_GetTicks();
 				deltaTime = currentTime - timeLastFrame;
+				// Frame Rate Cap //
 				if (deltaTime <= MINIMUM_FRAME_DURATION)
 					SDL_Delay(MINIMUM_FRAME_DURATION - deltaTime);
 
@@ -147,7 +147,7 @@ int main(int argc, char* args[])
 					break;
 				}
 
-				inputCore.CheckHeldKeyboardInput();
+				inputCore.CheckHeldKeyboardInput(deltaTime);
 
 				////////////////////////////////////////////////////////////////////
 				//		World Sim		//

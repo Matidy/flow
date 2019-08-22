@@ -162,7 +162,7 @@ void InputCore::UpdateKeyboardState
 	}
 }
 
-void InputCore::CheckHeldKeyboardInput()
+void InputCore::CheckHeldKeyboardInput(uint32_t _timeStep)
 {
 	if (ActiveChordWaiting())
 	{
@@ -176,9 +176,9 @@ void InputCore::CheckHeldKeyboardInput()
 	{
 		//single key input
 		assert(m_activeInputDelegate);
-		m_activeInputDelegate->DefineHeldInput();
+		m_activeInputDelegate->DefineHeldInput(_timeStep);
 		assert(m_globalGameInputDelegate);
-		m_globalGameInputDelegate->DefineHeldInput();
+		m_globalGameInputDelegate->DefineHeldInput(_timeStep);
 	}
 }
 
