@@ -1,6 +1,7 @@
 #pragma once
 #include <SDL_scancode.h>
 #include "Data/flVec2.h"
+#include "Data/eMouseButtonType.h"
 
 struct InputCoreIF;
 
@@ -12,8 +13,8 @@ public:
 
 	virtual void DefineHeldInput(uint32_t _timeStep) {}
 	virtual void MouseMovementInput(flVec2<int> _mousePos) {}
-	virtual void MouseUpInput(flVec2<int32_t> _mousePos) {}
-	virtual void MouseDownInput(flVec2<int32_t> _mousePos) {}
+	virtual void MouseDownInput(eMouseButtonType const _buttonType, flVec2<int> _mousePos) {}
+	virtual void MouseUpInput(eMouseButtonType const _buttonType, flVec2<int> _mousePos) {}
 	virtual void KeyPressedInput(SDL_Scancode const& _key) {}
 	virtual void KeyReleasedInput(SDL_Scancode const& _key) {}
 	virtual void DefineChordInput(uint32_t _timeStep) {}

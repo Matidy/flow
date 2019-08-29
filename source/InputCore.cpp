@@ -3,6 +3,7 @@
 #include "InputCore.h"
 
 #include "Data/flVec2.h"
+#include "Data/eMouseButtonType.h"
 
 #include "InputDelegate.h"
 
@@ -157,21 +158,25 @@ void InputCore::CheckMouseInput(SDL_Event const& _e)
 		m_globalGameInputDelegate->MouseMovementInput(mousePos);
 	}
 
+	eMouseButtonType buttonType;
 	if (_e.type == SDL_MOUSEBUTTONDOWN)
 	{
-		SDL_GetMouseState(&mousePos.x, &mousePos.y);
+		buttonType = static_cast<eMouseButtonType>(_e.button.button);
+		mousePos.x = _e.button.x;
+		mousePos.y = _e.button.y;
 		assert(m_activeInputDelegate);
-		m_activeInputDelegate->MouseDownInput(mousePos);
+		m_activeInputDelegate->MouseDownInput(buttonType, mousePos);
 		assert(m_globalGameInputDelegate);
-		m_globalGameInputDelegate->MouseDownInput(mousePos);
+		m_globalGameInputDelegate->MouseDownInput(buttonType, mousePos);
 	}
 	if (_e.type == SDL_MOUSEBUTTONUP)
 	{
+		buttonType = static_cast<eMouseButtonType>(_e.button.button);
 		SDL_GetMouseState(&mousePos.x, &mousePos.y);
 		assert(m_activeInputDelegate);
-		m_activeInputDelegate->MouseUpInput(mousePos);
+		m_activeInputDelegate->MouseUpInput(buttonType, mousePos);
 		assert(m_globalGameInputDelegate);
-		m_globalGameInputDelegate->MouseUpInput(mousePos);
+		m_globalGameInputDelegate->MouseUpInput(buttonType, mousePos);
 	}
 }
 

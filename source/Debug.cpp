@@ -25,7 +25,7 @@ Debug::Debug(RenderCoreIF& _renderCoreIF, InputCoreIF& _inputCoreIF)
 {
 	m_debugWorld = new flPoint[m_debugWorldSize];
 
-	uint32_t centerIndex = m_debugWorldSize % 2 ? m_debugWorldSize/2 + 1 : m_debugWorldSize/2;
+	uint32_t centerIndex = m_debugWorldSize % 2 ? m_debugWorldSize/2 : m_debugWorldSize/2 - 1;
 	m_debugWorld[centerIndex].m_energy = 1;
 	m_debugWorld[centerIndex].m_direction = flPoint::Direction::ALL;
 
@@ -344,10 +344,7 @@ void Debug::DelegateDraw(SDL_Renderer * const _gRenderer) const
 	{
 	case DrawMode::Propagation:
 	{
-		uint32_t debugWorldDim = m_tilesDimPixels*m_debugWorldDim;
-		uint32_t verticleBuffer = (Globals::WINDOW_HEIGHT - debugWorldDim) / 2;
-		uint32_t horizontalBuffer = (Globals::WINDOW_WIDTH - debugWorldDim) / 2;
-
+		//draw points as tiles
 		ValRGBA maxColour;
 		maxColour.r = 255;
 		maxColour.g = 140;
@@ -363,24 +360,32 @@ void Debug::DelegateDraw(SDL_Renderer * const _gRenderer) const
 
 		ValRGBA curColour;
 		SDL_Rect rect;
-		rect.x = horizontalBuffer;
-		rect.y = verticleBuffer;
+		rect.x = m_horizontalPixelBuffer;
+		rect.y = m_verticlePixelBuffer;
 		rect.w = m_tilesDimPixels;
 		rect.h = m_tilesDimPixels;
 		for (uint32_t i = 0; i < m_debugWorldSize; i++)
 		{
-			curColour = colourIncrement * m_debugWorld[i].m_energy*16; //@robustness - Will overflow for vals > 16
+			int16_t const& pointEnergy = m_debugWorld[i].m_energy;
+			curColour = colourIncrement * pointEnergy * 16; //@robustness - Will overflow for vals > 16
+			if (m_tileUnderMouseIndex == i)
+			{
+				curColour.r = 255;
+				curColour.g = 255;
+				curColour.b = 255;
+				curColour.a = 255;
+			}
 			SDL_SetRenderDrawColor(_gRenderer, curColour.r, curColour.g, curColour.b, curColour.a);
 			SDL_RenderFillRect(_gRenderer, &rect); //@check - passing in a local ref, is c++ smart enough to preserve the allocation? a - works, though might be due to SDL function copying data from passed in reference object into render buffer
 
-			if (rect.x + rect.w < horizontalBuffer + debugWorldDim)
+			if (rect.x + rect.w < m_horizontalPixelBuffer + m_debugWorldPixelDim)
 			{
 				rect.x += m_tilesDimPixels;
 			}
 			else
 			{
 				//start new row
-				rect.x = horizontalBuffer;
+				rect.x = m_horizontalPixelBuffer;
 				rect.y += m_tilesDimPixels;
 			}
 		}
@@ -388,25 +393,29 @@ void Debug::DelegateDraw(SDL_Renderer * const _gRenderer) const
 		//draw grid lines over the top
 		curColour = colourIncrement * 4;
 		SDL_SetRenderDrawColor(_gRenderer, curColour.r, curColour.g, curColour.b, curColour.a);
+		//verticle lines
 		flVec2<int> p1;
-		p1.x = horizontalBuffer;
-		p1.y = verticleBuffer;
+		p1.x = m_horizontalPixelBuffer;
+		p1.y = m_verticlePixelBuffer;
 		flVec2<int> p2;
-		p2.x = horizontalBuffer;
-		p2.y = verticleBuffer + m_debugWorldDim * m_tilesDimPixels - 1;
-		for (uint32_t i = 0; i< m_debugWorldDim; i++)
+		p2.x = m_horizontalPixelBuffer;
+		p2.y = m_verticlePixelBuffer + m_debugWorldDim * m_tilesDimPixels - 1;
+		for (uint32_t i = 0; i <= m_debugWorldDim; i++)
 		{
+			SDL_RenderDrawLine(_gRenderer, p1.x-1, p1.y, p2.x-1, p2.y);
 			SDL_RenderDrawLine(_gRenderer, p1.x, p1.y, p2.x, p2.y);
 			p1.x += m_tilesDimPixels;
 			p2.x += m_tilesDimPixels;
 		}
 
-		p1.x = horizontalBuffer;
-		p1.y = verticleBuffer;
-		p2.x = horizontalBuffer + m_debugWorldDim * m_tilesDimPixels - 1;
-		p2.y = verticleBuffer;
-		for (uint32_t i = 0; i< m_debugWorldDim; i++)
+		//horizontal lines
+		p1.x = m_horizontalPixelBuffer;
+		p1.y = m_verticlePixelBuffer;
+		p2.x = m_horizontalPixelBuffer + m_debugWorldDim * m_tilesDimPixels - 1;
+		p2.y = m_verticlePixelBuffer;
+		for (uint32_t i = 0; i <= m_debugWorldDim; i++)
 		{
+			SDL_RenderDrawLine(_gRenderer, p1.x, p1.y-1, p2.x, p2.y-1);
 			SDL_RenderDrawLine(_gRenderer, p1.x, p1.y, p2.x, p2.y);
 			p1.y += m_tilesDimPixels;
 			p2.y += m_tilesDimPixels;
@@ -446,6 +455,28 @@ void Debug::DelegateDraw(SDL_Renderer * const _gRenderer) const
 	}
 }
 
+void Debug::FindTileUnderMouse(flVec2<int>& _mousePos)
+{
+	//will be < 0 if mouse is outside tile world.
+	int32_t tileRow = (_mousePos.y - m_verticlePixelBuffer) / m_tilesDimPixels; //x is columns, y is rows
+	int32_t tileColumn = (_mousePos.x - m_horizontalPixelBuffer) / m_tilesDimPixels;
+	if (	tileRow >= 0
+		&&	tileRow < m_debugWorldDim 
+		&&	tileColumn >= 0
+		&&	tileColumn < m_debugWorldDim)
+	{
+		int32_t newIndex = static_cast<uint32_t>(tileRow)*m_debugWorldDim + static_cast<uint32_t>(tileColumn);
+		if (newIndex != m_tileUnderMouseIndex)
+		{
+			m_tileUnderMouseIndex = newIndex;
+		}
+	}
+	else if (m_tileUnderMouseIndex > 0)
+	{
+		m_tileUnderMouseIndex = -1;
+	}
+}
+
 void Debug::MaintainMousePosLabel(flVec2<int>& _mousePos)
 {
 	std::string labelText("Pos X: ");
@@ -473,6 +504,7 @@ void Debug::MaintainMousePosLabel(flVec2<int>& _mousePos)
 /////////////////////				   //////////////////////////
 void Debug::DefineChordInput(uint32_t _timeStep)
 {
+	//enable mouse pos label
 	if (m_inputCoreIF.TryKeyChord(KeyChordPair(SDL_SCANCODE_LCTRL, SDL_SCANCODE_M)))
 	{
 		m_showMousePos = !m_showMousePos;
@@ -488,6 +520,15 @@ void Debug::DefineChordInput(uint32_t _timeStep)
 			m_renderCoreIF.RemoveLabel("Mouse Position");
 		}
 	}
+	//reset grid
+	if (m_inputCoreIF.TryKeyChord(KeyChordPair(SDL_SCANCODE_LCTRL, SDL_SCANCODE_R)))
+	{
+		for (uint32_t i = 0; i < m_debugWorldSize; i++)
+		{
+			m_debugWorld[i].m_energy = 0;
+		}
+		m_pointsToPropagate.clear();
+	}
 }
 
 void Debug::MouseMovementInput(flVec2<int> _mousePos)
@@ -495,6 +536,57 @@ void Debug::MouseMovementInput(flVec2<int> _mousePos)
 	if (m_showMousePos)
 	{
 		MaintainMousePosLabel(_mousePos);
+	}
+
+	int32_t oldIndex = m_tileUnderMouseIndex;
+	FindTileUnderMouse(_mousePos);
+	if (oldIndex != m_tileUnderMouseIndex)
+	{
+		//mouse is over different tile to the one on last frame
+		if (m_setTilesActive)
+		{
+			m_debugWorld[m_tileUnderMouseIndex].m_energy = 1;
+		}
+		else if (m_setTilesUnactive)
+		{
+			m_debugWorld[m_tileUnderMouseIndex].m_energy = 0;
+		}
+	}
+}
+
+void Debug::MouseDownInput(eMouseButtonType const _buttonType, flVec2<int32_t> _mousePos)
+{
+	//set active
+	if (_buttonType == eMouseButtonType::LeftClick)
+	{
+		m_setTilesActive = true;
+		if (m_tileUnderMouseIndex >= 0)
+		{
+			m_debugWorld[m_tileUnderMouseIndex].m_energy = 1;
+		}
+	}
+	//set unactive
+	if (_buttonType == eMouseButtonType::RightClick)
+	{
+		m_setTilesUnactive = true;
+		if (m_tileUnderMouseIndex >= 0)
+		{
+			m_debugWorld[m_tileUnderMouseIndex].m_energy = 0;
+		}
+	}
+}
+
+void Debug::MouseUpInput(eMouseButtonType const _buttonType, flVec2<int32_t> _mousePos)
+{
+	//set active
+	if (_buttonType == eMouseButtonType::LeftClick)
+	{
+		m_setTilesActive = false;
+	}
+	//set unactive
+	if (_buttonType == eMouseButtonType::RightClick)
+	{
+		m_setTilesUnactive = false;
 	}
 }
 

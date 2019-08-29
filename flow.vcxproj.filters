@@ -60,6 +60,9 @@
     <ClInclude Include="source\RenderDelegate.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="source\Data\eMouseButtonType.h">
+      <Filter>Header Files\Data</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp">
