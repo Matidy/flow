@@ -1,5 +1,6 @@
 #include <unordered_map>
 #include <SDL_events.h>
+#include <SDL_mouse.h>
 #include <SDL_scancode.h>
 #include "Interfaces/InputCoreIF.h"
 
@@ -14,11 +15,14 @@ public:
 	virtual void SetGlobalGameInputDelegate(InputDelegate * _inputDelegate) override final;
 	virtual bool const& IsPressed(SDL_Scancode const _keyScanCode) override final;
 	virtual bool const TryKeyChord(KeyChordPair _keyChord) override final;
+	virtual void GetMousePos(flVec2<int>& o_mousePos) override final;
 	virtual bool const& ToggleInputBatching() override final;
 
 	InputCore();
 
 	void UpdateKeyboardState(SDL_Event const& _e);
+	void CheckMouseInput(SDL_Event const& _e);
+	void CheckPressedKeyboardInput(SDL_Event const& _e);
 	void CheckHeldKeyboardInput(uint32_t _timeStep);
 
 #ifdef _DEBUG

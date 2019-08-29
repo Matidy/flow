@@ -2,6 +2,8 @@
 #include <cassert>
 #include "InputCore.h"
 
+#include "Data/flVec2.h"
+
 #include "InputDelegate.h"
 
 
@@ -105,16 +107,6 @@ void InputCore::UpdateKeyboardState
 			//update keyboard state data
 			bool& isPressed = m_pressedKeys[key];
 			isPressed = true;
-
-			//fire off key pressed event
-			if (m_activeInputDelegate)
-			{
-				m_activeInputDelegate->KeyPressedInput(key);
-			}
-			if (m_globalGameInputDelegate)
-			{
-				m_globalGameInputDelegate->KeyPressedInput(key);
-			}
 		}
 
 		break;
@@ -147,30 +139,77 @@ void InputCore::UpdateKeyboardState
 		bool& isPressed = m_pressedKeys[key];
 		isPressed = false;
 
-		//fire off key released event
-		if (m_activeInputDelegate)
-		{
-			m_activeInputDelegate->KeyReleasedInput(key);
-		}
-		if (m_globalGameInputDelegate)
-		{
-			m_globalGameInputDelegate->KeyReleasedInput(key);
-		}
-
 		break;
 	}
 	}
 }
 
+void InputCore::CheckMouseInput(SDL_Event const& _e)
+{
+	flVec2<int> mousePos;
+	if (_e.type == SDL_MOUSEMOTION)
+	{
+		mousePos.x = _e.motion.x;
+		mousePos.y = _e.motion.y;
+		assert(m_activeInputDelegate);
+		m_activeInputDelegate->MouseMovementInput(mousePos);
+		assert(m_globalGameInputDelegate);
+		m_globalGameInputDelegate->MouseMovementInput(mousePos);
+	}
+
+	if (_e.type == SDL_MOUSEBUTTONDOWN)
+	{
+		SDL_GetMouseState(&mousePos.x, &mousePos.y);
+		assert(m_activeInputDelegate);
+		m_activeInputDelegate->MouseDownInput(mousePos);
+		assert(m_globalGameInputDelegate);
+		m_globalGameInputDelegate->MouseDownInput(mousePos);
+	}
+	if (_e.type == SDL_MOUSEBUTTONUP)
+	{
+		SDL_GetMouseState(&mousePos.x, &mousePos.y);
+		assert(m_activeInputDelegate);
+		m_activeInputDelegate->MouseUpInput(mousePos);
+		assert(m_globalGameInputDelegate);
+		m_globalGameInputDelegate->MouseUpInput(mousePos);
+	}
+}
+
+//brief - single fire -> pause -> continuous fire
+void InputCore::CheckPressedKeyboardInput(SDL_Event const& _e)
+{
+	SDL_Scancode keyScancode;
+	if (_e.key.type == SDL_KEYDOWN)
+	{
+		keyScancode = _e.key.keysym.scancode;
+
+		assert(m_activeInputDelegate);
+		m_activeInputDelegate->KeyPressedInput(keyScancode);
+		assert(m_globalGameInputDelegate);
+		m_globalGameInputDelegate->KeyPressedInput(keyScancode);
+	}
+
+	if (_e.type == SDL_KEYUP)
+	{
+		keyScancode = _e.key.keysym.scancode;
+
+		assert(m_activeInputDelegate);
+		m_activeInputDelegate->KeyReleasedInput(keyScancode);
+		assert(m_globalGameInputDelegate);
+		m_globalGameInputDelegate->KeyReleasedInput(keyScancode);
+	}
+}
+
+//brief - continuous fire
 void InputCore::CheckHeldKeyboardInput(uint32_t _timeStep)
 {
 	if (ActiveChordWaiting())
 	{
 		//chord input
 		assert(m_activeInputDelegate);
-		m_activeInputDelegate->DefineChordInput();
+		m_activeInputDelegate->DefineChordInput(_timeStep);
 		assert(m_globalGameInputDelegate);
-		m_globalGameInputDelegate->DefineChordInput();
+		m_globalGameInputDelegate->DefineChordInput(_timeStep);
 	}
 	else
 	{
@@ -204,6 +243,12 @@ bool const InputCore::TryKeyChord
 	}
 
 	return false; //no waiting chord matches given chord
+}
+
+void InputCore::GetMousePos(flVec2<int>& o_mousePos)
+{
+	SDL_GetMouseState(&o_mousePos.x, &o_mousePos.y);
+	return;
 }
 
 #ifdef _DEBUG

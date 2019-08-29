@@ -13,5 +13,8 @@ struct RenderCoreIF
 	virtual void AddRenderDelegate(RenderDelegate const * _renderDelegate) = 0;
 	virtual void RemoveRenderDelegate(RenderDelegate const * _renderDelegate) = 0;
 
-	virtual void CreateFadeLabel(char const * _symbol, char const * _text, SDL_Color _colour, SDL_Rect _displayRect, int32_t _timeBeforeFade) = 0;
+	virtual void MaintainLabel(char const* _symbol, char const* _text, SDL_Color _colour, SDL_Rect _displayRect) = 0;
+	//return - true for label removed, false for not found/removed
+	virtual bool RemoveLabel(char const* _symbol) = 0;
+	virtual void MaintainFadeLabel(char const * _symbol, char const * _text, SDL_Color _colour, SDL_Rect _displayRect, int32_t _timeBeforeFade) = 0;
 };

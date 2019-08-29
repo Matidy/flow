@@ -18,7 +18,7 @@ class GameData : public InputDelegate
 
 public:
 	//from InputDelegate
-	virtual void DefineChordInput() override final;
+	virtual void DefineChordInput(uint32_t _timeStep) override final;
 
 	GameData(RenderCoreIF& _renderCore, InputCoreIF& _inputCore);
 
@@ -31,4 +31,13 @@ private:
 #endif
 
 	RenderCoreIF& m_renderCoreIF;
+
+	struct FrameCounter
+	{
+		bool m_display = false;
+		uint32_t m_timeBetweenUpdates = 100u; //milli-seconds
+		uint32_t m_timeSinceLastUpdate = 100u;
+		float m_frameAverageTimestep = 0.f;
+	};
+	FrameCounter m_frameCounter;
 };

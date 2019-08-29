@@ -1,5 +1,7 @@
+#include <string>
 #include <stdio.h>
 #include <assert.h>
+
 #include <SDL_pixels.h>
 #include <SDL_rect.h>
 #include <SDL_render.h>
@@ -63,11 +65,11 @@ bool const& Debug::ToggleDebug()
 	displayRect.h = 32;
 	if (m_debugEnabled)
 	{
-		m_renderCoreIF.CreateFadeLabel("Debug Toggle", "Debug Enabled", displayColour, displayRect, 1500);
+		m_renderCoreIF.MaintainFadeLabel("Debug Toggle", "Debug Enabled", displayColour, displayRect, 1500);
 	}
 	else
 	{
-		m_renderCoreIF.CreateFadeLabel("Debug Toggle", "Debug Disabled", displayColour, displayRect, 1500);
+		m_renderCoreIF.MaintainFadeLabel("Debug Toggle", "Debug Disabled", displayColour, displayRect, 1500);
 	}
 
 	return m_debugEnabled;
@@ -342,10 +344,9 @@ void Debug::DelegateDraw(SDL_Renderer * const _gRenderer) const
 	{
 	case DrawMode::Propagation:
 	{
-		uint32_t verticleBuffer = 128u;
-		uint32_t debugWorldWidth = Globals::WINDOW_HEIGHT - (2 * verticleBuffer);
-		uint32_t tileWidth = debugWorldWidth / m_debugWorldDim; //this line rounds down from 18.82 to 18
-		uint32_t horizontalBuffer = (Globals::WINDOW_WIDTH - debugWorldWidth) / 2;
+		uint32_t debugWorldDim = m_tilesDimPixels*m_debugWorldDim;
+		uint32_t verticleBuffer = (Globals::WINDOW_HEIGHT - debugWorldDim) / 2;
+		uint32_t horizontalBuffer = (Globals::WINDOW_WIDTH - debugWorldDim) / 2;
 
 		ValRGBA maxColour;
 		maxColour.r = 255;
@@ -361,30 +362,54 @@ void Debug::DelegateDraw(SDL_Renderer * const _gRenderer) const
 		ValRGBA colourIncrement = (maxColour - minColour) / saturationVal;
 
 		ValRGBA curColour;
-		uint32_t x = horizontalBuffer;
-		uint32_t y = verticleBuffer;
+		SDL_Rect rect;
+		rect.x = horizontalBuffer;
+		rect.y = verticleBuffer;
+		rect.w = m_tilesDimPixels;
+		rect.h = m_tilesDimPixels;
 		for (uint32_t i = 0; i < m_debugWorldSize; i++)
 		{
-			SDL_Rect rect;
-			rect.x = x;
-			rect.y = y;
-			rect.w = tileWidth;
-			rect.h = tileWidth;
-
-			curColour = colourIncrement * m_debugWorld[i].m_energy; //@robustness - Will overflow for vals > 16
+			curColour = colourIncrement * m_debugWorld[i].m_energy*16; //@robustness - Will overflow for vals > 16
 			SDL_SetRenderDrawColor(_gRenderer, curColour.r, curColour.g, curColour.b, curColour.a);
 			SDL_RenderFillRect(_gRenderer, &rect); //@check - passing in a local ref, is c++ smart enough to preserve the allocation? a - works, though might be due to SDL function copying data from passed in reference object into render buffer
 
-			if (x < horizontalBuffer + (m_debugWorldDim - 1)*tileWidth)
+			if (rect.x + rect.w < horizontalBuffer + debugWorldDim)
 			{
-				x += tileWidth;
+				rect.x += m_tilesDimPixels;
 			}
 			else
 			{
 				//start new row
-				x = horizontalBuffer;
-				y += tileWidth;
+				rect.x = horizontalBuffer;
+				rect.y += m_tilesDimPixels;
 			}
+		}
+
+		//draw grid lines over the top
+		curColour = colourIncrement * 4;
+		SDL_SetRenderDrawColor(_gRenderer, curColour.r, curColour.g, curColour.b, curColour.a);
+		flVec2<int> p1;
+		p1.x = horizontalBuffer;
+		p1.y = verticleBuffer;
+		flVec2<int> p2;
+		p2.x = horizontalBuffer;
+		p2.y = verticleBuffer + m_debugWorldDim * m_tilesDimPixels - 1;
+		for (uint32_t i = 0; i< m_debugWorldDim; i++)
+		{
+			SDL_RenderDrawLine(_gRenderer, p1.x, p1.y, p2.x, p2.y);
+			p1.x += m_tilesDimPixels;
+			p2.x += m_tilesDimPixels;
+		}
+
+		p1.x = horizontalBuffer;
+		p1.y = verticleBuffer;
+		p2.x = horizontalBuffer + m_debugWorldDim * m_tilesDimPixels - 1;
+		p2.y = verticleBuffer;
+		for (uint32_t i = 0; i< m_debugWorldDim; i++)
+		{
+			SDL_RenderDrawLine(_gRenderer, p1.x, p1.y, p2.x, p2.y);
+			p1.y += m_tilesDimPixels;
+			p2.y += m_tilesDimPixels;
 		}
 
 		break;
@@ -421,19 +446,66 @@ void Debug::DelegateDraw(SDL_Renderer * const _gRenderer) const
 	}
 }
 
+void Debug::MaintainMousePosLabel(flVec2<int>& _mousePos)
+{
+	std::string labelText("Pos X: ");
+	labelText.append(std::to_string(_mousePos.x));
+	labelText.append(", Pos Y: ");
+	labelText.append(std::to_string(_mousePos.y));
+
+	SDL_Color displayColour;
+	displayColour.r = 255;
+	displayColour.g = 255;
+	displayColour.b = 255;
+	displayColour.a = 255;
+
+	SDL_Rect displayRect;
+	displayRect.w = 128;
+	displayRect.h = 24;
+	displayRect.x = Globals::WINDOW_WIDTH - displayRect.w - 8;
+	displayRect.y = 32;
+
+	m_renderCoreIF.MaintainLabel("Mouse Position", labelText.data(), displayColour, displayRect);
+}
+
 /////////////////////				   ///////////////////////////////////////////////////////
 //////////////////   from InputDelegate   ///////////////////////////////////////////////////
 /////////////////////				   //////////////////////////
+void Debug::DefineChordInput(uint32_t _timeStep)
+{
+	if (m_inputCoreIF.TryKeyChord(KeyChordPair(SDL_SCANCODE_LCTRL, SDL_SCANCODE_M)))
+	{
+		m_showMousePos = !m_showMousePos;
+
+		if (m_showMousePos)
+		{
+			flVec2<int> mousePos;
+			m_inputCoreIF.GetMousePos(mousePos);
+			MaintainMousePosLabel(mousePos);
+		}
+		else
+		{
+			m_renderCoreIF.RemoveLabel("Mouse Position");
+		}
+	}
+}
+
+void Debug::MouseMovementInput(flVec2<int> _mousePos)
+{
+	if (m_showMousePos)
+	{
+		MaintainMousePosLabel(_mousePos);
+	}
+}
+
 void Debug::DefineHeldInput(uint32_t _timeStep)
 {
 	if (m_inputCoreIF.IsPressed(SDL_SCANCODE_LEFT))
 	{
-		//@TODO: Decrement propagation step
 		printf("Left Pressed Debug Mode\n");
 	}
 	if (m_inputCoreIF.IsPressed(SDL_SCANCODE_RIGHT))
 	{
-		//@TODO: Increment propagation step
 		printf("Right Pressed Debug Mode\n");
 	}
 }

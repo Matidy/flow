@@ -19,8 +19,8 @@
 #include "source/GameData.h"
 
 
-constexpr Uint32 FRAME_RATE = 60u; //Currently frame rate = 2*FRAME_RATE for some reason.
-constexpr Uint32 MINIMUM_FRAME_DURATION = 1000/FRAME_RATE;
+constexpr Uint32 FRAME_RATE_CAP = 120u; //comes out at 125 due to rounding
+constexpr Uint32 MINIMUM_FRAME_DURATION = 1000/FRAME_RATE_CAP;
 
 namespace Main
 {
@@ -112,8 +112,11 @@ int main(int argc, char* args[])
 				currentTime = SDL_GetTicks();
 				deltaTime = currentTime - timeLastFrame;
 				// Frame Rate Cap //
-				if (deltaTime <= MINIMUM_FRAME_DURATION)
+				if (deltaTime < MINIMUM_FRAME_DURATION)
+				{
 					SDL_Delay(MINIMUM_FRAME_DURATION - deltaTime);
+					deltaTime = MINIMUM_FRAME_DURATION;
+				}
 
 				////////////////////////////////////////////////////////////////////
 				//		Input		//
@@ -126,21 +129,21 @@ int main(int argc, char* args[])
 						quit = true;
 						break;
 					}
+#ifdef _DEBUG
+					if (inputCore.InputBatchEnabled())
+					{
+						inputCore.BatchProcessInputs(e);
+					}
 					else
 					{
-#if _DEBUG
-						if (inputCore.InputBatchEnabled())
-						{
-							inputCore.BatchProcessInputs(e);
-						}
-						else
-						{
 #endif
-							inputCore.UpdateKeyboardState(e);
-#if _DEBUG
-						}
-#endif
+						inputCore.UpdateKeyboardState(e);
+#ifdef _DEBUG
 					}
+#endif
+
+					inputCore.CheckMouseInput(e);
+					inputCore.CheckPressedKeyboardInput(e);
 				}
 				if (quit == true)
 				{
@@ -157,7 +160,7 @@ int main(int argc, char* args[])
 				////////////////////////////////////////////////////////////////////
 				//		Render		 //
 				/////////////////////////
-				renderCore.DrawUpdate(gameData, deltaTime);
+				renderCore.DrawUpdate(deltaTime);
 
 				SDL_RenderPresent(renderCore.m_gRenderer);
 
