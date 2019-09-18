@@ -33,6 +33,9 @@ Debug::Debug(RenderCoreIF& _renderCoreIF, InputCoreIF& _inputCoreIF)
 
 	m_tessalationPoints = new SDL_Point[3000];
 
+	m_vectors[0] = Vector2D<float>(200.f, 0.f, 300.f, 1200.f);
+	m_vectors[1] = Vector2D<float>(0.f, 100.f, 1000.f, 200.f);
+
 	//@TODO - would be good to have a debug mode where we can cycle through different resolutions of grid to get a real feel
 	//		  for each resolution.
 }
@@ -378,7 +381,7 @@ void Debug::DelegateDraw(SDL_Renderer * const _gRenderer) const
 			SDL_SetRenderDrawColor(_gRenderer, curColour.r, curColour.g, curColour.b, curColour.a);
 			SDL_RenderFillRect(_gRenderer, &rect); //@check - passing in a local ref, is c++ smart enough to preserve the allocation? a - works, though might be due to SDL function copying data from passed in reference object into render buffer
 
-			if (rect.x + rect.w < m_horizontalPixelBuffer + m_debugWorldPixelDim)
+			if (rect.x + rect.w < static_cast<int32_t>(m_horizontalPixelBuffer + m_debugWorldPixelDim))
 			{
 				rect.x += m_tilesDimPixels;
 			}
@@ -420,6 +423,38 @@ void Debug::DelegateDraw(SDL_Renderer * const _gRenderer) const
 			p1.y += m_tilesDimPixels;
 			p2.y += m_tilesDimPixels;
 		}
+
+#if 1
+		//vectors
+		SDL_SetRenderDrawColor(_gRenderer, 255, 255, 255, 255);
+		for (uint8_t i = 0; i<m_vectorsSize; i++)
+		{
+			//using endpoint data
+			Vector2D<float> const& vector = m_vectors[i];
+			SDL_RenderDrawLine(_gRenderer,	static_cast<int>(vector.m_startingPoint.x),
+											static_cast<int>(vector.m_startingPoint.y),
+											static_cast<int>(vector.m_endPoint.x),
+											static_cast<int>(vector.m_endPoint.y) );
+			/*
+			//using vector equation to get endpoint data
+			flVec2<int> offset{ 150, 0 };
+			flVec2<float> endPoint = vector.CalcEndpoint();
+			SDL_RenderDrawLine(_gRenderer, offset.x + static_cast<int>(vector.m_startingPoint.x),
+										   offset.y + static_cast<int>(vector.m_startingPoint.y),
+										   offset.x + static_cast<int>(endPoint.x),
+										   offset.y + static_cast<int>(endPoint.y) );
+										   */
+		}
+
+		Vector2D<float> const& vector = m_vectors[0];
+		flVec2<float> intersectionPoint = vector.GetIntersectionPoint(m_vectors[1]);
+		SDL_SetRenderDrawColor(_gRenderer, 15, 255, 95, 255);
+		rect.x = static_cast<int>(intersectionPoint.x)-1;
+		rect.y = static_cast<int>(intersectionPoint.y)-1;
+		rect.h = 3;
+		rect.w = 3;
+		SDL_RenderFillRect(_gRenderer, &rect);
+#endif
 
 		break;
 	}
@@ -545,11 +580,15 @@ void Debug::MouseMovementInput(flVec2<int> _mousePos)
 		//mouse is over different tile to the one on last frame
 		if (m_setTilesActive)
 		{
-			m_debugWorld[m_tileUnderMouseIndex].m_energy = 1;
+			flPoint& pointUnderMouse = m_debugWorld[m_tileUnderMouseIndex];
+			if (pointUnderMouse.m_energy < 7) //ROYGBIV
+				pointUnderMouse.m_energy++;
 		}
 		else if (m_setTilesUnactive)
 		{
-			m_debugWorld[m_tileUnderMouseIndex].m_energy = 0;
+			flPoint& pointUnderMouse = m_debugWorld[m_tileUnderMouseIndex];
+			if (pointUnderMouse.m_energy > 0)
+				pointUnderMouse.m_energy--;
 		}
 	}
 }
@@ -562,7 +601,9 @@ void Debug::MouseDownInput(eMouseButtonType const _buttonType, flVec2<int32_t> _
 		m_setTilesActive = true;
 		if (m_tileUnderMouseIndex >= 0)
 		{
-			m_debugWorld[m_tileUnderMouseIndex].m_energy = 1;
+			flPoint& pointUnderMouse = m_debugWorld[m_tileUnderMouseIndex];
+			if (pointUnderMouse.m_energy < 7) //ROYGBIV
+				pointUnderMouse.m_energy++;
 		}
 	}
 	//set unactive
@@ -571,7 +612,9 @@ void Debug::MouseDownInput(eMouseButtonType const _buttonType, flVec2<int32_t> _
 		m_setTilesUnactive = true;
 		if (m_tileUnderMouseIndex >= 0)
 		{
-			m_debugWorld[m_tileUnderMouseIndex].m_energy = 0;
+			flPoint& pointUnderMouse = m_debugWorld[m_tileUnderMouseIndex];
+			if (pointUnderMouse.m_energy > 0)
+				pointUnderMouse.m_energy--;
 		}
 	}
 }

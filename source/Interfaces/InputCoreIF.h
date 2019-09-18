@@ -1,7 +1,7 @@
 #pragma once
 #include <utility>
 #include <SDL_scancode.h>
-#include "Data/flVec2.h"
+#include "../Data/flVec2.h"
 
 class InputDelegate;
 typedef std::pair<SDL_Scancode, SDL_Scancode> KeyChordPair;

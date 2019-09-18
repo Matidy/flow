@@ -11,7 +11,6 @@
 #include "Interfaces/InputCoreIF.h"
 
 
-
 ///////////////////////////////////////////////////////////////////////////////////////////////
 WorldGrid::WorldGrid(RenderCoreIF& _renderCoreIF, InputCoreIF& _inputCoreIF)
 	: RenderDelegate(_renderCoreIF),
@@ -66,6 +65,9 @@ bool WorldGrid::UpdateStep
 
 	}
 	*/
+
+	//1. Generate a world containing some moveable tiles and some immovable. First to act as water, second to act as solid walls to run against.
+	//2. Each frame, every flPoint in array has its movement updated
 
 	return true;
 }
@@ -174,7 +176,7 @@ uint32_t FloatToPixels(float const _inputDimension, float& _accRoundError)
 }
 
 //brief - Converts from float to int value representing pixel width, and accumulates error from rounding,
-//		  modifying a future conversion by a pixel once we've accumulated one pixel worth of error.
+//		  modifying a future conversion by one pixel once we've accumulated one pixel worth of error.
 uint32_t FloatToPixelsX(float const _inputDimension, bool const _zeroAccumulator = false)
 {
 	static float accRoundErrorX = 0.f; //accumulated error
@@ -185,7 +187,7 @@ uint32_t FloatToPixelsX(float const _inputDimension, bool const _zeroAccumulator
 }
 
 //brief - Converts from float to int value representing pixel height, and accumulates error from rounding,
-//		  modifying a future conversion by a pixel once we've accumulated one pixel worth of error.
+//		  modifying a future conversion by one pixel once we've accumulated one pixel worth of error.
 uint32_t FloatToPixelsY(float const _inputDimension, bool const _zeroAccumulator = false)
 {
 	static float accRoundErrorY = 0.f; //accumulated error
@@ -212,7 +214,7 @@ void WorldGrid::DelegateDraw(SDL_Renderer * const _gRenderer) const
 	flVec2<float> const offsetsFromCenterToEdge = GetCenterToEdgeOffsets(); //number of points from center of world to edge
 
 	////////////
-	//// 1.
+	//// 1. @consider - could I replace this with just using the viewport bounda as the rows/cols at the edge of the viewport as viewport size is defined in terms of points? 
 	////////
 	//get row index for FIRST ROW INSIDE viewport and how much height off that row is not culled
 	uint32_t topNonCulledRowIndex = 0; //start from top most row
@@ -325,7 +327,10 @@ void WorldGrid::DelegateDraw(SDL_Renderer * const _gRenderer) const
 		distLeftViewportToWorld = abs((m_cullingViewport.m_pos.x - m_cullingViewport.m_xExtension) + offsetsFromCenterToEdge.x); 
 
 	////////////
-	//// 3.
+	//// 3. @consider - to make this runs faster (profile as you go):
+	////					1. GPU rendering
+	////					2. Shift values that exist across multiple frame in back-buffer in accordance with viewport movement, and then pull data from WorldGrid to fill new part of WorldGrid
+	////					   made visible by viewport movement.
 	////////
 	if (topNonCulledRowIndex < Globals::WORLD_Y_SIZE
 		&& bottomNonCulledRowIndex >= 0

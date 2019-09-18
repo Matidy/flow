@@ -1,3 +1,6 @@
+#include <iostream>
+#include <tuple>
+
 #include <SDL.h>
 /* following includes are redundant as SDL.h include all SDL headers. Kept for now as like explictness in which
    parts of SDL are currently being used.
@@ -70,6 +73,15 @@ int main(int argc, char* args[])
 
 			//test code section
 			{
+				//structured bindings (C++17 feature)
+				auto CreateIndexedFloat = []() -> std::tuple<int, float>
+				{
+					return { 3, 5.555f };
+				};
+				auto[index, indexedFloat] = CreateIndexedFloat();
+				std::cout << index << ", " << indexedFloat << std::endl;
+
+				//float precision
 				int32_t minus = -1;
 				uint32_t not_minus = static_cast<uint32_t> (minus);
 
@@ -95,6 +107,33 @@ int main(int argc, char* args[])
 				float c4 =  4.f / 12.f;  //0.333333343
 				float c8 =  8.f / 12.f;  //0.666666687
 				float c9 =  9.f / 12.f;  //0.750000000
+
+				//virtual destructors
+				class BaseA
+				{
+				public:
+					BaseA() {}
+					virtual ~BaseA() { std::cout << "Destructing BaseA" << std::endl; }
+				};
+				class BaseB
+				{
+				public:
+					BaseB() {}
+					virtual ~BaseB() { std::cout << "Destructing BaseB" << std::endl; }
+				};
+				class Derived :
+					public BaseA,
+					public BaseB
+				{
+				public:
+					Derived() {}
+					~Derived() override { std::cout << "Destructing Derived" << std::endl; }
+				};
+
+				Derived* deri = new Derived;
+				BaseA* base = deri;
+
+				delete base;
 			}
 
 			bool quit = false;
