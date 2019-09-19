@@ -139,6 +139,7 @@
     <ClInclude Include="source\InputCore.h" />
     <ClInclude Include="source\interfaces\RenderCoreIF.h" />
     <ClInclude Include="source\Interfaces\InputCoreIF.h" />
+    <ClInclude Include="source\Libs\PhysicsLib.h" />
     <ClInclude Include="source\RenderCore.h" />
     <ClInclude Include="source\RenderDelegate.h" />
     <ClInclude Include="source\WorldGrid.h" />
@@ -149,6 +150,7 @@
     <ClCompile Include="source\GameData.cpp" />
     <ClCompile Include="source\InputCore.cpp" />
     <ClCompile Include="source\InputDelegate.cpp" />
+    <ClCompile Include="source\Libs\PhysicsLib.cpp" />
     <ClCompile Include="source\RenderCore.cpp" />
     <ClCompile Include="source\RenderDelegate.cpp" />
     <ClCompile Include="source\WorldGrid.cpp" />

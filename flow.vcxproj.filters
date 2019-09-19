@@ -19,6 +19,9 @@
     <Filter Include="Header Files\Data">
       <UniqueIdentifier>{cab24185-32da-4c38-90fe-fae2eeca877c}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Header Files\Libs">
+      <UniqueIdentifier>{f36c5a19-2e19-4f43-94fa-e57d55c696fd}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="source\WorldGrid.h">
@@ -63,6 +66,9 @@
     <ClInclude Include="source\Data\eMouseButtonType.h">
       <Filter>Header Files\Data</Filter>
     </ClInclude>
+    <ClInclude Include="source\Libs\PhysicsLib.h">
+      <Filter>Header Files\Libs</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp">
@@ -87,6 +93,9 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="source\RenderDelegate.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="source\Libs\PhysicsLib.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

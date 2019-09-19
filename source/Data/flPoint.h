@@ -1,7 +1,10 @@
-#include "flVec2.h"
-
 #ifndef FL_POINT
 #define FL_POINT
+
+#include "flVec2.h"
+#include "../Libs/PhysicsLib.h"
+
+
 struct flPoint
 {
 public:
@@ -21,7 +24,7 @@ public:
 
 	//store both direction and speed as one in single Vec2 (i.e. how far energy will move per timestep & in
 	//what direction)
-	flVec2<uint32_t> m_velocityVector;
+	PhysicsLib::Vector2D<float> m_movementVector;
 
 	//whether or not this point reflects all energy that interacts with it, i.e. if it is 'moveable' or not
 	bool m_moveable;
@@ -40,17 +43,17 @@ public:
 	flPoint
 	(
 		int32_t _energy,
-		flVec2<uint32_t> _velVec,
+		PhysicsLib::Vector2D<float> _movVec,
 		bool _moveable
 	)
 		: m_energy(_energy),
-		m_velocityVector(_velVec),
+		m_movementVector(_movVec),
 		m_moveable(_moveable)
 	{}
 
 	flPoint()
 		: m_energy(0),
-		m_velocityVector(flVec2<uint32_t>()),
+		m_movementVector(),
 		m_moveable(true)
 	{}
 
