@@ -1,6 +1,10 @@
+#include <vector>
+
 #include "Globals.h"
-#include "Data/flPoint.h"
+#include "Data/flEnergy.h"
+#include "Data/flSpace.h"
 #include "Data/flVec2.h"
+#include "Libs/PhysicsLib.h"
 #include "RenderDelegate.h"
 #include "InputDelegate.h"
 
@@ -18,6 +22,7 @@ public:
 	//from InputDelegate
 	virtual void DefineHeldInput(uint32_t _timeStep) override final;
 	virtual void KeyPressedInput(SDL_Scancode const& _key) override final;
+	virtual void DefineChordInput(uint32_t _timeStep) override final;
 
 	WorldGrid(RenderCoreIF& _renderCoreIF, InputCoreIF& _inputCoreIF);
 	~WorldGrid();
@@ -26,20 +31,32 @@ public:
 	bool UpdateStep(uint32_t const _timeStep);
 
 private:
-	flVec2<float> const GetCenterToEdgeOffsets() const;
+	flVec2<flEnergy::PointVectorType> const GetCenterToEdgeOffsets() const;
 
-	flPoint& GetPointUp(uint32_t _currentPointIndex);
-	flPoint& GetPointDown(uint32_t _currentPointIndex);
-	flPoint& GetPointLeft(uint32_t _currentPointIndex);
-	flPoint& GetPointRight(uint32_t _currentPointIndex);
+	flVec2<int32_t>	Pos1DToPos2DInt(uint32_t _index);
+	flVec2<flEnergy::PointVectorType> Pos1DToPos2D(uint32_t _index);
+	uint32_t Pos2DToPos1D(flVec2<int32_t> _pos2D);
+	flEnergy& GetEnergyAtIndex(uint32_t _index);
+	flEnergy& GetPointUp(uint32_t _currentPointIndex);
+	flEnergy& GetPointDown(uint32_t _currentPointIndex);
+	flEnergy& GetPointLeft(uint32_t _currentPointIndex);
+	flEnergy& GetPointRight(uint32_t _currentPointIndex);
+	uint32_t GetIndexUp(uint32_t _currentPointIndex) const;
+	uint32_t GetIndexDown(uint32_t _currentPointIndex) const;
+	uint32_t GetIndexLeft(uint32_t _currentPointIndex) const;
+	uint32_t GetIndexRight(uint32_t _currentPointIndex) const;
 
-	//initially just a contiguous array, accessing different arrays using width/height world constants
-	//future challange is how to store Point data when looking to expand the boundaries/size of the world,
-	//e.g. - increase resolution of a space within the world bounds
-	//     - add more world to left of existing world: if new world data is B and old is A then expansion
-	//       pattern of world data is from [Ar1-Ar2-Ar3...Arn] to [Br1-Ar1-Br2-Ar2-Br3-Ar3...Brn-Arn].
-	flPoint* m_worldGrid;
-	flPoint m_nullPoint;
+	/**** world array data****
+	* initially just a contiguous array, accessing different arrays using width/height world constants
+	* future challange is how to store Point data when looking to expand the boundaries/size of the world,
+	* e.g. - increase resolution of a space within the world bounds
+	*     - add more world to left of existing world: if new world data is B and old is A then expansion
+	*       pattern of world data is from [Ar1-Ar2-Ar3...Arn] to [Br1-Ar1-Br2-Ar2-Br3-Ar3...Brn-Arn].
+	*/
+	std::vector<flEnergy> m_worldEnergy; 
+	std::vector<flSpace> m_worldGrid; //using vector for debugger readout
+	flEnergy m_nullEnergy;
+	uint32_t m_energyToSpaceRatio = 8;
 
 	struct CullingViewport
 	{

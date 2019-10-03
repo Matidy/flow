@@ -128,7 +128,8 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClInclude Include="source\Data\flPoint.h" />
+    <ClInclude Include="source\Data\flEnergy.h" />
+    <ClInclude Include="source\Data\flSpace.h" />
     <ClInclude Include="source\Data\flVec2.h" />
     <ClInclude Include="source\Data\eMouseButtonType.h" />
     <ClInclude Include="source\Data\ValRGBA.h" />
@@ -150,7 +151,6 @@
     <ClCompile Include="source\GameData.cpp" />
     <ClCompile Include="source\InputCore.cpp" />
     <ClCompile Include="source\InputDelegate.cpp" />
-    <ClCompile Include="source\Libs\PhysicsLib.cpp" />
     <ClCompile Include="source\RenderCore.cpp" />
     <ClCompile Include="source\RenderDelegate.cpp" />
     <ClCompile Include="source\WorldGrid.cpp" />

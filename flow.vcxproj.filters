@@ -30,9 +30,6 @@
     <ClInclude Include="source\Debug.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="source\Data\flPoint.h">
-      <Filter>Header Files\Data</Filter>
-    </ClInclude>
     <ClInclude Include="source\Data\flVec2.h">
       <Filter>Header Files\Data</Filter>
     </ClInclude>
@@ -57,9 +54,6 @@
     <ClInclude Include="source\interfaces\RenderCoreIF.h">
       <Filter>Header Files\Interfaces</Filter>
     </ClInclude>
-    <ClInclude Include="source\Globals.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="source\RenderDelegate.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -68,6 +62,15 @@
     </ClInclude>
     <ClInclude Include="source\Libs\PhysicsLib.h">
       <Filter>Header Files\Libs</Filter>
+    </ClInclude>
+    <ClInclude Include="source\Globals.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="source\Data\flEnergy.h">
+      <Filter>Header Files\Data</Filter>
+    </ClInclude>
+    <ClInclude Include="source\Data\flSpace.h">
+      <Filter>Header Files\Data</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -93,9 +96,6 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="source\RenderDelegate.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="source\Libs\PhysicsLib.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

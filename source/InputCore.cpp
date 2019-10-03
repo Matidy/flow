@@ -158,50 +158,57 @@ void InputCore::CheckMouseInput(SDL_Event const& _e)
 		m_globalGameInputDelegate->MouseMovementInput(mousePos);
 	}
 
-	eMouseButtonType buttonType;
-	if (_e.type == SDL_MOUSEBUTTONDOWN)
+	if (!ActiveChordWaiting())
 	{
-		buttonType = static_cast<eMouseButtonType>(_e.button.button);
-		mousePos.x = _e.button.x;
-		mousePos.y = _e.button.y;
-		assert(m_activeInputDelegate);
-		m_activeInputDelegate->MouseDownInput(buttonType, mousePos);
-		assert(m_globalGameInputDelegate);
-		m_globalGameInputDelegate->MouseDownInput(buttonType, mousePos);
-	}
-	if (_e.type == SDL_MOUSEBUTTONUP)
-	{
-		buttonType = static_cast<eMouseButtonType>(_e.button.button);
-		SDL_GetMouseState(&mousePos.x, &mousePos.y);
-		assert(m_activeInputDelegate);
-		m_activeInputDelegate->MouseUpInput(buttonType, mousePos);
-		assert(m_globalGameInputDelegate);
-		m_globalGameInputDelegate->MouseUpInput(buttonType, mousePos);
+		//@bug - still want mouse button up to be registered when ctrl is being held as this signals to stop drawing in Debug mode
+		eMouseButtonType buttonType;
+		if (_e.type == SDL_MOUSEBUTTONDOWN)
+		{
+			buttonType = static_cast<eMouseButtonType>(_e.button.button);
+			mousePos.x = _e.button.x;
+			mousePos.y = _e.button.y;
+			assert(m_activeInputDelegate);
+			m_activeInputDelegate->MouseDownInput(buttonType, mousePos);
+			assert(m_globalGameInputDelegate);
+			m_globalGameInputDelegate->MouseDownInput(buttonType, mousePos);
+		}
+		if (_e.type == SDL_MOUSEBUTTONUP)
+		{
+			buttonType = static_cast<eMouseButtonType>(_e.button.button);
+			SDL_GetMouseState(&mousePos.x, &mousePos.y);
+			assert(m_activeInputDelegate);
+			m_activeInputDelegate->MouseUpInput(buttonType, mousePos);
+			assert(m_globalGameInputDelegate);
+			m_globalGameInputDelegate->MouseUpInput(buttonType, mousePos);
+		}
 	}
 }
 
 //brief - single fire -> pause -> continuous fire
 void InputCore::CheckPressedKeyboardInput(SDL_Event const& _e)
 {
-	SDL_Scancode keyScancode;
-	if (_e.key.type == SDL_KEYDOWN)
+	if (!ActiveChordWaiting())
 	{
-		keyScancode = _e.key.keysym.scancode;
+		SDL_Scancode keyScancode;
+		if (_e.key.type == SDL_KEYDOWN)
+		{
+			keyScancode = _e.key.keysym.scancode;
 
-		assert(m_activeInputDelegate);
-		m_activeInputDelegate->KeyPressedInput(keyScancode);
-		assert(m_globalGameInputDelegate);
-		m_globalGameInputDelegate->KeyPressedInput(keyScancode);
-	}
+			assert(m_activeInputDelegate);
+			m_activeInputDelegate->KeyPressedInput(keyScancode);
+			assert(m_globalGameInputDelegate);
+			m_globalGameInputDelegate->KeyPressedInput(keyScancode);
+		}
 
-	if (_e.type == SDL_KEYUP)
-	{
-		keyScancode = _e.key.keysym.scancode;
+		if (_e.type == SDL_KEYUP)
+		{
+			keyScancode = _e.key.keysym.scancode;
 
-		assert(m_activeInputDelegate);
-		m_activeInputDelegate->KeyReleasedInput(keyScancode);
-		assert(m_globalGameInputDelegate);
-		m_globalGameInputDelegate->KeyReleasedInput(keyScancode);
+			assert(m_activeInputDelegate);
+			m_activeInputDelegate->KeyReleasedInput(keyScancode);
+			assert(m_globalGameInputDelegate);
+			m_globalGameInputDelegate->KeyReleasedInput(keyScancode);
+		}
 	}
 }
 

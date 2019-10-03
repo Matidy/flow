@@ -9,7 +9,7 @@
 #include <SDL_events.h>
 #include <SDL_render.h>
 /* https://stackoverflow.com/questions/21392755/difference-between-surface-and-texture-sdl-general
-   Difference between SDL_Surface and SDLTexture.
+   Difference between SDL_Surface and SDL_Texture.
 */
 
 #include <SDL_ttf.h>
@@ -31,15 +31,14 @@ namespace Main
 	{
 		bool success = true;
 		if (SDL_Init(	SDL_INIT_VIDEO
-					 && SDL_INIT_EVENTS ) < 0) {
+					  | SDL_INIT_EVENTS ) < 0) 
+		{
 			printf("SDL could not initialise! SDL_Error: %s\n", SDL_GetError());
-
 			success = false;
 		}
 		if (TTF_Init() < 0)
 		{
 			printf("SDL_ttf could not initialise! TTF_Error: %s\n", TTF_GetError());
-
 			success = false;
 		}
 
@@ -71,6 +70,7 @@ int main(int argc, char* args[])
 		{
 			GameData gameData(renderCore, inputCore);
 
+#ifdef _DEBUG
 			//test code section
 			{
 				//structured bindings (C++17 feature)
@@ -135,6 +135,7 @@ int main(int argc, char* args[])
 
 				delete base;
 			}
+#endif
 
 			bool quit = false;
 			Uint32 startTime = SDL_GetTicks();

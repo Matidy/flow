@@ -49,10 +49,17 @@ namespace PhysicsLib
 		//@consider - normalisation doesn't really exist as a concept in grid space. More sensible option here might be to simplify the direction vector as much as possible
 		void Normalise()
 		{
-			T hypoDist = sqrt(m_direction.x*m_direction.x + m_direction.y*m_direction.y);
+			if (m_direction.x != 0 || m_direction.y != 0)
+			{
+				T hypoDist = sqrt(m_direction.x*m_direction.x + m_direction.y*m_direction.y);
 
-			m_direction = m_direction/hypoDist;
-			m_scalar = hypoDist;
+				m_direction = m_direction/hypoDist;
+				m_scalar = hypoDist;
+			}
+			else 
+			{
+				m_scalar = 0;
+			}
 		}
 
 		flVec2<T> Translate(flVec2<T> _translation)
@@ -70,14 +77,14 @@ namespace PhysicsLib
 		{
 			flVec2<T> intersectionPoint;
 
-			//need to check for verticle vectors here as m_direction.x==0 in this case (avoid divide by 0 exception)
+			//@TODO - need to check for verticle vectors here as m_direction.x==0 in this case (avoid divide by 0 exception)
 
 			T mA = m_direction.y/m_direction.x;
 			T mB = _otherVector.m_direction.y/_otherVector.m_direction.x;
 			T cA = m_startingPoint.y + (-m_startingPoint.x / m_direction.x)*m_direction.y;
 			T cB = _otherVector.m_startingPoint.y + (-_otherVector.m_startingPoint.x / _otherVector.m_direction.x)*_otherVector.m_direction.y;
 
-			//need to return null vec2 here if mA == mB (vectors are parallel so no intersection)
+			//@TODO - need to return null vec2 here if mA == mB (vectors are parallel so no intersection)
 
 			intersectionPoint.x = (cB - cA) / (mA - mB);
 			intersectionPoint.y = mA * intersectionPoint.x + cA;

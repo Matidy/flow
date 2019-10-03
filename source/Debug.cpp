@@ -23,18 +23,29 @@ Debug::Debug(RenderCoreIF& _renderCoreIF, InputCoreIF& _inputCoreIF)
 	  m_propagationMode(PropagationMode::SimpleDirectional),
 	  m_drawMode(DrawMode::Propagation)
 {
-	m_debugWorld = new flPoint[m_debugWorldSize];
+	m_debugWorld = new flEnergy[m_debugWorldSize];
 
 	uint32_t centerIndex = m_debugWorldSize % 2 ? m_debugWorldSize/2 : m_debugWorldSize/2 - 1;
 	m_debugWorld[centerIndex].m_energy = 1;
-	m_debugWorld[centerIndex].m_direction = flPoint::Direction::ALL;
+	m_debugWorld[centerIndex].m_direction = flEnergy::Direction::ALL;
 
 	m_pointsToPropagate.push_back(centerIndex);
 
 	m_tessalationPoints = new SDL_Point[3000];
 
-	m_vectors[0] = Vector2D<float>(200.f, 0.f, 300.f, 1200.f);
-	m_vectors[1] = Vector2D<float>(0.f, 100.f, 1000.f, 200.f);
+	flVec2<float> startingPoint(300.f, 300.f);
+	/*
+	m_vectors[0] = PhysicsLib::Vector2D<float>(startingPoint, (2.f/16.f)*360.f, 64.f);
+	m_vectors[1] = PhysicsLib::Vector2D<float>(startingPoint, (4.f/16.f)*360.f, 64.f);
+	m_vectors[2] = PhysicsLib::Vector2D<float>(startingPoint, (6.f/16.f)*360.f, 64.f);
+	m_vectors[3] = PhysicsLib::Vector2D<float>(startingPoint, (11.f/16.f)*360.f, 64.f);
+	m_vectors[4] = PhysicsLib::Vector2D<float>(startingPoint, (13.f/16.f)*360.f, 64.f);
+	*/
+	m_vectors[0] = PhysicsLib::Vector2D<float>(startingPoint, 0.f,	 64.f);
+	m_vectors[1] = PhysicsLib::Vector2D<float>(startingPoint, 90.f,	 64.f);
+	m_vectors[2] = PhysicsLib::Vector2D<float>(startingPoint, 180.f, 64.f);
+	m_vectors[3] = PhysicsLib::Vector2D<float>(startingPoint, 270.f, 64.f);
+	m_vectorsFilled = 4;
 
 	//@TODO - would be good to have a debug mode where we can cycle through different resolutions of grid to get a real feel
 	//		  for each resolution.
@@ -120,73 +131,73 @@ void Debug::PropagateAdjacent()
 		for (; iter != end; ++iter)
 		{
 			uint32_t index = *iter;
-			flPoint& curPoint = m_debugWorld[index];
+			flEnergy& curPoint = m_debugWorld[index];
 
 			switch (curPoint.m_direction)
 			{
-			case flPoint::Direction::ALL:
+			case flEnergy::Direction::ALL:
 			{
 				uint32_t iUp = GetIndexUp(index);
-				flPoint& upPoint = m_debugWorld[iUp];
-				upPoint.m_direction = flPoint::Direction::UP;
+				flEnergy& upPoint = m_debugWorld[iUp];
+				upPoint.m_direction = flEnergy::Direction::UP;
 				upPoint.m_energy += 1;
 				nextFramePoints.push_back(iUp);
 
 				uint32_t iLeft = GetIndexLeft(index);
-				flPoint& leftPoint = m_debugWorld[iLeft];
-				leftPoint.m_direction = flPoint::Direction::LEFT;
+				flEnergy& leftPoint = m_debugWorld[iLeft];
+				leftPoint.m_direction = flEnergy::Direction::LEFT;
 				leftPoint.m_energy += 1;
 				nextFramePoints.push_back(iLeft);
 
 				uint32_t iDown = GetIndexDown(index);
-				flPoint& downPoint = m_debugWorld[iDown];
-				downPoint.m_direction = flPoint::Direction::DOWN;
+				flEnergy& downPoint = m_debugWorld[iDown];
+				downPoint.m_direction = flEnergy::Direction::DOWN;
 				downPoint.m_energy += 1;
 				nextFramePoints.push_back(iDown);
 
 				uint32_t iRight = GetIndexRight(index);
-				flPoint& rightPoint = m_debugWorld[iRight];
-				rightPoint.m_direction = flPoint::Direction::RIGHT;
+				flEnergy& rightPoint = m_debugWorld[iRight];
+				rightPoint.m_direction = flEnergy::Direction::RIGHT;
 				rightPoint.m_energy += 1;
 				nextFramePoints.push_back(iRight);
 
 				break;
 			}
-			case flPoint::Direction::UP:
+			case flEnergy::Direction::UP:
 			{
 				uint32_t iUp = GetIndexUp(index);
-				flPoint& upPoint = m_debugWorld[iUp];
-				upPoint.m_direction = flPoint::Direction::UP;
+				flEnergy& upPoint = m_debugWorld[iUp];
+				upPoint.m_direction = flEnergy::Direction::UP;
 				upPoint.m_energy += 1;
 				nextFramePoints.push_back(iUp);
 
 				break;
 			}
-			case flPoint::Direction::LEFT:
+			case flEnergy::Direction::LEFT:
 			{
 				uint32_t iLeft = GetIndexLeft(index);
-				flPoint& leftPoint = m_debugWorld[iLeft];
-				leftPoint.m_direction = flPoint::Direction::LEFT;
+				flEnergy& leftPoint = m_debugWorld[iLeft];
+				leftPoint.m_direction = flEnergy::Direction::LEFT;
 				leftPoint.m_energy += 1;
 				nextFramePoints.push_back(iLeft);
 
 				break;
 			}
-			case flPoint::Direction::DOWN:
+			case flEnergy::Direction::DOWN:
 			{
 				uint32_t iDown = GetIndexDown(index);
-				flPoint& downPoint = m_debugWorld[iDown];
-				downPoint.m_direction = flPoint::Direction::DOWN;
+				flEnergy& downPoint = m_debugWorld[iDown];
+				downPoint.m_direction = flEnergy::Direction::DOWN;
 				downPoint.m_energy += 1;
 				nextFramePoints.push_back(iDown);
 
 				break;
 			}
-			case flPoint::Direction::RIGHT:
+			case flEnergy::Direction::RIGHT:
 			{
 				uint32_t iRight = GetIndexRight(index);
-				flPoint& rightPoint = m_debugWorld[iRight];
-				rightPoint.m_direction = flPoint::Direction::RIGHT;
+				flEnergy& rightPoint = m_debugWorld[iRight];
+				rightPoint.m_direction = flEnergy::Direction::RIGHT;
 				rightPoint.m_energy += 1;
 				nextFramePoints.push_back(iRight);
 
@@ -202,7 +213,7 @@ void Debug::PropagateAdjacent()
 		for (; iter != end; ++iter)
 		{
 			uint32_t index = *iter;
-			flPoint& curPoint = m_debugWorld[index];
+			flEnergy& curPoint = m_debugWorld[index];
 			//get previously visited and visit adjacent
 			//remove from list once processed
 			//add adjacent to list
@@ -211,7 +222,7 @@ void Debug::PropagateAdjacent()
 			uint32_t iDown = GetIndexDown(index);
 			uint32_t iLeft = GetIndexLeft(index);
 			uint32_t iRight = GetIndexRight(index);
-			if (curPoint.m_direction != flPoint::Direction::DOWN)
+			if (curPoint.m_direction != flEnergy::Direction::DOWN)
 			{
 				if (iUp != m_nullIndex)
 				{
@@ -219,7 +230,7 @@ void Debug::PropagateAdjacent()
 					nextFramePoints.push_back(iUp);
 				}
 			}
-			if (curPoint.m_direction != flPoint::Direction::UP)
+			if (curPoint.m_direction != flEnergy::Direction::UP)
 			{
 				if (iDown != m_nullIndex)
 				{
@@ -227,7 +238,7 @@ void Debug::PropagateAdjacent()
 					nextFramePoints.push_back(iDown);
 				}
 			}
-			if (curPoint.m_direction != flPoint::Direction::RIGHT)
+			if (curPoint.m_direction != flEnergy::Direction::RIGHT)
 			{
 				if (iLeft != m_nullIndex)
 				{
@@ -235,7 +246,7 @@ void Debug::PropagateAdjacent()
 					nextFramePoints.push_back(iLeft);
 				}
 			}
-			if (curPoint.m_direction != flPoint::Direction::LEFT)
+			if (curPoint.m_direction != flEnergy::Direction::LEFT)
 			{
 				if (iRight != m_nullIndex)
 				{
@@ -285,56 +296,56 @@ void Debug::ResetWorldGrid()
 
 uint32_t Debug::GetIndexUp
 (
-	uint32_t _currentPointIndex
+	uint32_t _currentEnergyIndex
 )
 {
-	if (_currentPointIndex < m_debugWorldDim)
+	if (_currentEnergyIndex < m_debugWorldDim)
 	{
 		//top row, no up to get
 		return m_nullIndex;
 	}
 	else
 	{
-		return _currentPointIndex - m_debugWorldDim;
+		return _currentEnergyIndex - m_debugWorldDim;
 	}
 }
 
-uint32_t Debug::GetIndexDown(uint32_t _currentPointIndex)
+uint32_t Debug::GetIndexDown(uint32_t _currentEnergyIndex)
 {
-	if (_currentPointIndex > (m_debugWorldDim*m_debugWorldDim) - 1 - m_debugWorldDim)
+	if (_currentEnergyIndex > (m_debugWorldDim*m_debugWorldDim) - 1 - m_debugWorldDim)
 	{
 		//bottom row, no down to get
 		return m_nullIndex;
 	}
 	else
 	{
-		return _currentPointIndex + m_debugWorldDim;
+		return _currentEnergyIndex + m_debugWorldDim;
 	}
 }
 
-uint32_t Debug::GetIndexLeft(uint32_t _currentPointIndex)
+uint32_t Debug::GetIndexLeft(uint32_t _currentEnergyIndex)
 {
-	if (_currentPointIndex % m_debugWorldDim == 0)
+	if (_currentEnergyIndex % m_debugWorldDim == 0)
 	{
 		//left most row, no left to get
 		return m_nullIndex;
 	}
 	else
 	{
-		return _currentPointIndex - 1;
+		return _currentEnergyIndex - 1;
 	}
 }
 
-uint32_t Debug::GetIndexRight(uint32_t _currentPointIndex)
+uint32_t Debug::GetIndexRight(uint32_t _currentEnergyIndex)
 {
-	if (_currentPointIndex % m_debugWorldDim == m_debugWorldDim - 1)
+	if (_currentEnergyIndex % m_debugWorldDim == m_debugWorldDim - 1)
 	{
 		//right most row, no right to get
 		return m_nullIndex;
 	}
 	else
 	{
-		return _currentPointIndex + 1;
+		return _currentEnergyIndex + 1;
 	}
 }
 
@@ -347,7 +358,7 @@ void Debug::DelegateDraw(SDL_Renderer * const _gRenderer) const
 	{
 	case DrawMode::Propagation:
 	{
-		//draw points as tiles
+		//draw energy points as tiles
 		ValRGBA maxColour;
 		maxColour.r = 255;
 		maxColour.g = 140;
@@ -427,33 +438,30 @@ void Debug::DelegateDraw(SDL_Renderer * const _gRenderer) const
 #if 1
 		//vectors
 		SDL_SetRenderDrawColor(_gRenderer, 255, 255, 255, 255);
-		for (uint8_t i = 0; i<m_vectorsSize; i++)
+		for (uint8_t i = 0; i<m_vectorsFilled; i++)
 		{
 			//using endpoint data
-			Vector2D<float> const& vector = m_vectors[i];
+			PhysicsLib::Vector2D<float> const& vector = m_vectors[i];
 			SDL_RenderDrawLine(_gRenderer,	static_cast<int>(vector.m_startingPoint.x),
 											static_cast<int>(vector.m_startingPoint.y),
-											static_cast<int>(vector.m_endPoint.x),
-											static_cast<int>(vector.m_endPoint.y) );
-			/*
-			//using vector equation to get endpoint data
-			flVec2<int> offset{ 150, 0 };
-			flVec2<float> endPoint = vector.CalcEndpoint();
-			SDL_RenderDrawLine(_gRenderer, offset.x + static_cast<int>(vector.m_startingPoint.x),
-										   offset.y + static_cast<int>(vector.m_startingPoint.y),
-										   offset.x + static_cast<int>(endPoint.x),
-										   offset.y + static_cast<int>(endPoint.y) );
-										   */
+											static_cast<int>(vector.CalcEndpoint().x),
+											static_cast<int>(vector.CalcEndpoint().y));
 		}
 
-		Vector2D<float> const& vector = m_vectors[0];
-		flVec2<float> intersectionPoint = vector.GetIntersectionPoint(m_vectors[1]);
-		SDL_SetRenderDrawColor(_gRenderer, 15, 255, 95, 255);
-		rect.x = static_cast<int>(intersectionPoint.x)-1;
-		rect.y = static_cast<int>(intersectionPoint.y)-1;
-		rect.h = 3;
-		rect.w = 3;
-		SDL_RenderFillRect(_gRenderer, &rect);
+		auto RenderIntersection = [_gRenderer] (PhysicsLib::Vector2D<float> _vec1, PhysicsLib::Vector2D<float> _vec2, int _offset = 0) -> void
+		{
+			SDL_Rect rect;
+			flVec2<float> intersectionPoint = _vec1.GetIntersectionPoint(_vec2);
+			SDL_SetRenderDrawColor(_gRenderer, 15, 255, 95, 255);
+			rect.x = _offset + static_cast<int>(intersectionPoint.x)-1;
+			rect.y = _offset + static_cast<int>(intersectionPoint.y)-1;
+			rect.h = 3;
+			rect.w = 3;
+			SDL_RenderFillRect(_gRenderer, &rect);
+		};
+
+		RenderIntersection(m_vectors[0], m_vectors[1]);
+		RenderIntersection(m_vectors[2], m_vectors[3]);
 #endif
 
 		break;
@@ -580,13 +588,13 @@ void Debug::MouseMovementInput(flVec2<int> _mousePos)
 		//mouse is over different tile to the one on last frame
 		if (m_setTilesActive)
 		{
-			flPoint& pointUnderMouse = m_debugWorld[m_tileUnderMouseIndex];
+			flEnergy& pointUnderMouse = m_debugWorld[m_tileUnderMouseIndex];
 			if (pointUnderMouse.m_energy < 7) //ROYGBIV
 				pointUnderMouse.m_energy++;
 		}
 		else if (m_setTilesUnactive)
 		{
-			flPoint& pointUnderMouse = m_debugWorld[m_tileUnderMouseIndex];
+			flEnergy& pointUnderMouse = m_debugWorld[m_tileUnderMouseIndex];
 			if (pointUnderMouse.m_energy > 0)
 				pointUnderMouse.m_energy--;
 		}
@@ -601,7 +609,7 @@ void Debug::MouseDownInput(eMouseButtonType const _buttonType, flVec2<int32_t> _
 		m_setTilesActive = true;
 		if (m_tileUnderMouseIndex >= 0)
 		{
-			flPoint& pointUnderMouse = m_debugWorld[m_tileUnderMouseIndex];
+			flEnergy& pointUnderMouse = m_debugWorld[m_tileUnderMouseIndex];
 			if (pointUnderMouse.m_energy < 7) //ROYGBIV
 				pointUnderMouse.m_energy++;
 		}
@@ -612,7 +620,7 @@ void Debug::MouseDownInput(eMouseButtonType const _buttonType, flVec2<int32_t> _
 		m_setTilesUnactive = true;
 		if (m_tileUnderMouseIndex >= 0)
 		{
-			flPoint& pointUnderMouse = m_debugWorld[m_tileUnderMouseIndex];
+			flEnergy& pointUnderMouse = m_debugWorld[m_tileUnderMouseIndex];
 			if (pointUnderMouse.m_energy > 0)
 				pointUnderMouse.m_energy--;
 		}

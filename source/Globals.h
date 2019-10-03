@@ -5,6 +5,9 @@
 
 namespace Globals
 {
+	//flSpace/flEnergy
+	constexpr uint32_t NULL_INDEX = 0xffffffff;
+
 	//WorldGrid
 	constexpr uint32_t WORLD_X_SIZE = 1 << 7; //128
 	constexpr uint32_t WORLD_Y_SIZE = 1 << 7; //128

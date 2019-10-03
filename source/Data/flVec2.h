@@ -18,6 +18,29 @@ struct flVec2
 		  y (_y)
 	{}
 
+	/**************************************
+	**** Logic Operators ****
+	*****************************/
+	bool operator==(flVec2<T> _operand) const {
+		return	x == _operand.x
+			&&	y == _operand.y;
+	}
+	bool operator!=(flVec2<T> _operand) const {
+		return	x != _operand.x
+			||	y != _operand.y;
+	}
+	bool operator==(T _operand) const {
+		return	x == _operand
+			&&	y == _operand;
+	}
+	bool operator!=(T _operand) const {
+		return	x != _operand
+			||	y != _operand;
+	}
+
+	/**************************************
+	**** Arithmetic Operators ****
+	*****************************/
 	flVec2<T> operator+(T _operand) const
 	{
 		flVec2<T> result;
