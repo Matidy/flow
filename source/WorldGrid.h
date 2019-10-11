@@ -31,22 +31,19 @@ public:
 	bool UpdateStep(uint32_t const _timeStep);
 
 private:
-	flVec2<flEnergy::PointVectorType> const GetCenterToEdgeOffsets() const;
+	flVec2<flEnergy::MoveVectorType> const GetCenterToEdgeOffsets() const;
 
 	flVec2<int32_t>	Pos1DToPos2DInt(uint32_t _index);
-	flVec2<flEnergy::PointVectorType> Pos1DToPos2D(uint32_t _index);
+	flVec2<flEnergy::MoveVectorType> Pos1DToPos2D(uint32_t _index);
 	uint32_t Pos2DToPos1D(flVec2<int32_t> _pos2D);
+	flSpace& GetSpaceAtIndex(uint32_t _index);
 	flEnergy& GetEnergyAtIndex(uint32_t _index);
-	flEnergy& GetPointUp(uint32_t _currentPointIndex);
-	flEnergy& GetPointDown(uint32_t _currentPointIndex);
-	flEnergy& GetPointLeft(uint32_t _currentPointIndex);
-	flEnergy& GetPointRight(uint32_t _currentPointIndex);
 	uint32_t GetIndexUp(uint32_t _currentPointIndex) const;
 	uint32_t GetIndexDown(uint32_t _currentPointIndex) const;
 	uint32_t GetIndexLeft(uint32_t _currentPointIndex) const;
 	uint32_t GetIndexRight(uint32_t _currentPointIndex) const;
 
-	/**** world array data****
+	/**** world array data ****
 	* initially just a contiguous array, accessing different arrays using width/height world constants
 	* future challange is how to store Point data when looking to expand the boundaries/size of the world,
 	* e.g. - increase resolution of a space within the world bounds
@@ -56,8 +53,11 @@ private:
 	std::vector<flEnergy> m_worldEnergy; 
 	std::vector<flSpace> m_worldGrid; //using vector for debugger readout
 	flEnergy m_nullEnergy;
-	uint32_t m_energyToSpaceRatio = 8;
+	flSpace m_nullSpace;
+	uint32_t const m_energyToSpaceRatio = 128;
+	uint32_t m_cumulativeFrameTime = 0;
 
+	
 	struct CullingViewport
 	{
 		static constexpr float m_xExtensionDefault = static_cast<float>(Globals::TILE_DRAW_DIMENSIONS*Globals::WORLD_X_SIZE) + 16.f;

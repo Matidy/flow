@@ -27,7 +27,7 @@ Debug::Debug(RenderCoreIF& _renderCoreIF, InputCoreIF& _inputCoreIF)
 
 	uint32_t centerIndex = m_debugWorldSize % 2 ? m_debugWorldSize/2 : m_debugWorldSize/2 - 1;
 	m_debugWorld[centerIndex].m_energy = 1;
-	m_debugWorld[centerIndex].m_direction = flEnergy::Direction::ALL;
+	m_debugWorld[centerIndex].m_cardinalDirection = flEnergy::Direction::ALL;
 
 	m_pointsToPropagate.push_back(centerIndex);
 
@@ -133,31 +133,31 @@ void Debug::PropagateAdjacent()
 			uint32_t index = *iter;
 			flEnergy& curPoint = m_debugWorld[index];
 
-			switch (curPoint.m_direction)
+			switch (curPoint.m_cardinalDirection)
 			{
 			case flEnergy::Direction::ALL:
 			{
 				uint32_t iUp = GetIndexUp(index);
 				flEnergy& upPoint = m_debugWorld[iUp];
-				upPoint.m_direction = flEnergy::Direction::UP;
+				upPoint.m_cardinalDirection = flEnergy::Direction::UP;
 				upPoint.m_energy += 1;
 				nextFramePoints.push_back(iUp);
 
 				uint32_t iLeft = GetIndexLeft(index);
 				flEnergy& leftPoint = m_debugWorld[iLeft];
-				leftPoint.m_direction = flEnergy::Direction::LEFT;
+				leftPoint.m_cardinalDirection = flEnergy::Direction::LEFT;
 				leftPoint.m_energy += 1;
 				nextFramePoints.push_back(iLeft);
 
 				uint32_t iDown = GetIndexDown(index);
 				flEnergy& downPoint = m_debugWorld[iDown];
-				downPoint.m_direction = flEnergy::Direction::DOWN;
+				downPoint.m_cardinalDirection = flEnergy::Direction::DOWN;
 				downPoint.m_energy += 1;
 				nextFramePoints.push_back(iDown);
 
 				uint32_t iRight = GetIndexRight(index);
 				flEnergy& rightPoint = m_debugWorld[iRight];
-				rightPoint.m_direction = flEnergy::Direction::RIGHT;
+				rightPoint.m_cardinalDirection = flEnergy::Direction::RIGHT;
 				rightPoint.m_energy += 1;
 				nextFramePoints.push_back(iRight);
 
@@ -167,7 +167,7 @@ void Debug::PropagateAdjacent()
 			{
 				uint32_t iUp = GetIndexUp(index);
 				flEnergy& upPoint = m_debugWorld[iUp];
-				upPoint.m_direction = flEnergy::Direction::UP;
+				upPoint.m_cardinalDirection = flEnergy::Direction::UP;
 				upPoint.m_energy += 1;
 				nextFramePoints.push_back(iUp);
 
@@ -177,7 +177,7 @@ void Debug::PropagateAdjacent()
 			{
 				uint32_t iLeft = GetIndexLeft(index);
 				flEnergy& leftPoint = m_debugWorld[iLeft];
-				leftPoint.m_direction = flEnergy::Direction::LEFT;
+				leftPoint.m_cardinalDirection = flEnergy::Direction::LEFT;
 				leftPoint.m_energy += 1;
 				nextFramePoints.push_back(iLeft);
 
@@ -187,7 +187,7 @@ void Debug::PropagateAdjacent()
 			{
 				uint32_t iDown = GetIndexDown(index);
 				flEnergy& downPoint = m_debugWorld[iDown];
-				downPoint.m_direction = flEnergy::Direction::DOWN;
+				downPoint.m_cardinalDirection = flEnergy::Direction::DOWN;
 				downPoint.m_energy += 1;
 				nextFramePoints.push_back(iDown);
 
@@ -197,7 +197,7 @@ void Debug::PropagateAdjacent()
 			{
 				uint32_t iRight = GetIndexRight(index);
 				flEnergy& rightPoint = m_debugWorld[iRight];
-				rightPoint.m_direction = flEnergy::Direction::RIGHT;
+				rightPoint.m_cardinalDirection = flEnergy::Direction::RIGHT;
 				rightPoint.m_energy += 1;
 				nextFramePoints.push_back(iRight);
 
@@ -222,7 +222,7 @@ void Debug::PropagateAdjacent()
 			uint32_t iDown = GetIndexDown(index);
 			uint32_t iLeft = GetIndexLeft(index);
 			uint32_t iRight = GetIndexRight(index);
-			if (curPoint.m_direction != flEnergy::Direction::DOWN)
+			if (curPoint.m_cardinalDirection != flEnergy::Direction::DOWN)
 			{
 				if (iUp != m_nullIndex)
 				{
@@ -230,7 +230,7 @@ void Debug::PropagateAdjacent()
 					nextFramePoints.push_back(iUp);
 				}
 			}
-			if (curPoint.m_direction != flEnergy::Direction::UP)
+			if (curPoint.m_cardinalDirection != flEnergy::Direction::UP)
 			{
 				if (iDown != m_nullIndex)
 				{
@@ -238,7 +238,7 @@ void Debug::PropagateAdjacent()
 					nextFramePoints.push_back(iDown);
 				}
 			}
-			if (curPoint.m_direction != flEnergy::Direction::RIGHT)
+			if (curPoint.m_cardinalDirection != flEnergy::Direction::RIGHT)
 			{
 				if (iLeft != m_nullIndex)
 				{
@@ -246,7 +246,7 @@ void Debug::PropagateAdjacent()
 					nextFramePoints.push_back(iLeft);
 				}
 			}
-			if (curPoint.m_direction != flEnergy::Direction::LEFT)
+			if (curPoint.m_cardinalDirection != flEnergy::Direction::LEFT)
 			{
 				if (iRight != m_nullIndex)
 				{

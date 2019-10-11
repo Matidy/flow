@@ -2,6 +2,8 @@
 #include <cmath>
 #include <ctime>
 #include <iostream>
+#include <functional>
+#include <map>
 
 #include <SDL_render.h>
 #include <SDL_timer.h>
@@ -17,7 +19,7 @@
 WorldGrid::WorldGrid(RenderCoreIF& _renderCoreIF, InputCoreIF& _inputCoreIF)
 	: RenderDelegate(_renderCoreIF),
 	  InputDelegate(_inputCoreIF),
-	  m_nullEnergy(flEnergy(0xffff, PhysicsLib::Vector2D<flEnergy::PointVectorType>(), false)),
+	  m_nullEnergy(flEnergy(0xffff, PhysicsLib::Vector2D<flEnergy::MoveVectorType>(), false)),
 	  m_cullingViewport(flVec2<float>(0.f, 0.f))
 {
 	assert(Globals::TOTAL_WORLD_SIZE < 0xffffffff);
@@ -26,6 +28,7 @@ WorldGrid::WorldGrid(RenderCoreIF& _renderCoreIF, InputCoreIF& _inputCoreIF)
 	m_worldEnergy.resize(Globals::TOTAL_WORLD_SIZE/m_energyToSpaceRatio);
 	std::srand(static_cast<unsigned int>(std::time(nullptr)));
 
+	m_nullSpace.m_energyIndex = Globals::WALL_INDEX;
 }
 
 WorldGrid::~WorldGrid()
@@ -35,6 +38,11 @@ WorldGrid::~WorldGrid()
 
 bool WorldGrid::GenerateWorld()
 {
+	//reset space
+	for (uint32_t i = 0; i <m_worldGrid.size(); i++)
+	{
+		m_worldGrid[i].m_energyIndex = Globals::NULL_INDEX;
+	}
 	//@consider - good candidate for multi-threading to enable rest of game to carry on functioning if this takes several seconds to compute
 	//generate energy our world will contain
 	uint32_t basePos = 0;
@@ -51,10 +59,11 @@ bool WorldGrid::GenerateWorld()
 		curEnergy.m_movementVector.m_startingPoint = Pos1DToPos2D(indexInWorld);
 
 		//move direction
-		flEnergy::PointVectorType base = static_cast<flEnergy::PointVectorType>(std::rand() % 2 ? 1 : -1); //-1 to +1
-		flEnergy::PointVectorType variable = static_cast<flEnergy::PointVectorType>((std::rand() % 17) - 8); //-8 to +8
+		flEnergy::MoveVectorType base = static_cast<flEnergy::MoveVectorType>(std::rand() % 2 ? 1 : -1); //-1 to +1
+		flEnergy::MoveVectorType variable = static_cast<flEnergy::MoveVectorType>((std::rand() % 17) - 8); //-8 to +8
+		variable += variable == 0 ? 1 : 0; //fudge to avoid 0 values
 
-		flVec2<flEnergy::PointVectorType>& direction = curEnergy.m_movementVector.m_direction; //direction is ratio of x to y moves
+		flVec2<flEnergy::MoveVectorType>& direction = curEnergy.m_movementVector.m_direction; //direction is ratio of x to y moves
 		if (std::rand() % 2)
 		{
 			direction.x = base;
@@ -67,21 +76,23 @@ bool WorldGrid::GenerateWorld()
 		}
 
 		//scalar stores how many cells to move in a second
-		curEnergy.m_movementVector.m_scalar = static_cast<flEnergy::PointVectorType>(std::rand() % 64 + 1);
+		curEnergy.m_movementVector.m_scalar = static_cast<flEnergy::MoveVectorType>(std::rand() % 32 + 1);
 
 		basePos += m_energyToSpaceRatio;
 	}
 
-	//sort flEnergy array by move speed
+#if 0
+	//sort flEnergy array by move speed - fastest to slowest
 	std::qsort(&m_worldEnergy[0], m_worldEnergy.size(), sizeof(flEnergy), [](const void *a, const void *b) -> int
 	{
 		float arg1 = static_cast<const flEnergy*>(a)->m_movementVector.m_scalar;
 		float arg2 = static_cast<const flEnergy*>(b)->m_movementVector.m_scalar;
 
-		if (arg1 < arg2) return -1;
-		if (arg1 > arg2) return 1;
+		if (arg1 > arg2) return -1;
+		if (arg1 < arg2) return 1;
 		return 0;
 	});
+#endif
 
 	//set m_worldGrid array values to store the index of the flEnergy element contained in their space
 	for (uint32_t i = 0; i < m_worldEnergy.size(); i++)
@@ -109,13 +120,462 @@ bool WorldGrid::GenerateWorld()
 	return true;
 }
 
+template<typename T>
+void MoveTowardsZero(T& o_integer, T moveBy)
+{
+	if (o_integer == 0)
+		return;
+
+	if (moveBy >= abs(o_integer))
+		o_integer = 0.f;
+	else
+	{
+		int32_t moveDir = o_integer > 0 ? -1 : +1;
+		o_integer += moveBy*static_cast<T>(moveDir);
+	}
+}
+
 bool WorldGrid::UpdateStep
 (
 	uint32_t _timeStep
 )
 {
-	
+	uint32_t frameStartTime = m_cumulativeFrameTime;
+	m_cumulativeFrameTime += _timeStep;
+	uint32_t frameEndTime = m_cumulativeFrameTime;
+	for (uint32_t t = 1; t < _timeStep+1; t++)
+	{
+		for (uint32_t i = 0; i < m_worldEnergy.size(); i++)
+		{
+			flEnergy& energy = m_worldEnergy[i];
+			uint32_t advanceEveryMs = static_cast<uint32_t>(1000.f/energy.m_movementVector.m_scalar);
+			uint32_t startingAdvances = frameStartTime/advanceEveryMs;
+			uint32_t endingAdvances = frameEndTime/advanceEveryMs;
 
+			assert(startingAdvances <= endingAdvances);
+			for (uint32_t a = startingAdvances; a < endingAdvances; a++)
+			{
+				uint32_t advanceTime = (a+1)*advanceEveryMs;
+				if (advanceTime == frameStartTime + t)
+				{
+					uint32_t spaceToMoveIntoIndex = Globals::NULL_INDEX;
+					flEnergy::Direction movDirection = flEnergy::Direction::ALL;
+					flVec2<flEnergy::MoveVectorType>& movementStore = energy.m_currentMovementStore;
+					if (movementStore == 0)
+					{
+						//refresh movement vector
+						movementStore = energy.m_movementVector.m_direction;
+					}
+
+					if (movementStore.x != 0)
+					{
+						if (movementStore.x > 0)
+						{
+							//set up for move right
+							spaceToMoveIntoIndex = GetIndexRight(energy.m_indexInWorld);
+							movDirection = flEnergy::Direction::RIGHT;
+						}
+						else
+						{
+							//set up for move left
+							spaceToMoveIntoIndex = GetIndexLeft(energy.m_indexInWorld);
+							movDirection = flEnergy::Direction::LEFT;
+						}
+
+						MoveTowardsZero(movementStore.x, 1.f);
+					}
+					else if (movementStore.y != 0)
+					{
+						if (movementStore.y > 0)
+						{
+							//set up for move up
+							spaceToMoveIntoIndex = GetIndexUp(energy.m_indexInWorld);
+							movDirection = flEnergy::Direction::UP;
+						}
+						else
+						{
+							//set up for move down
+							spaceToMoveIntoIndex = GetIndexDown(energy.m_indexInWorld);
+							movDirection = flEnergy::Direction::DOWN;
+						}
+
+						MoveTowardsZero(movementStore.y, 1.f);
+					}
+
+					//process movement/collisions
+					flSpace& currentSpace = GetSpaceAtIndex(energy.m_indexInWorld);//m_worldGrid[curEnergy.m_indexInWorld];
+					flSpace& spaceToMoveInto = GetSpaceAtIndex(spaceToMoveIntoIndex);
+					if (spaceToMoveInto.m_energyIndex == Globals::NULL_INDEX)
+					{
+						//empty, just move
+						spaceToMoveInto.m_energyIndex = i;
+						currentSpace.m_energyIndex = Globals::NULL_INDEX;
+
+						energy.m_indexInWorld = spaceToMoveIntoIndex;
+					}
+					else
+					{
+						//collision
+						if (spaceToMoveInto.m_energyIndex == Globals::WALL_INDEX)
+						{
+							//at world bound, just reflect
+							if (movDirection == flEnergy::Direction::UP || movDirection == flEnergy::Direction::DOWN)
+								energy.m_movementVector.m_direction.y *= -1;
+							else if (movDirection == flEnergy::Direction::LEFT || movDirection == flEnergy::Direction::RIGHT)
+								energy.m_movementVector.m_direction.x *= -1;
+						}
+						else
+						{
+							flEnergy& collidedWith = GetEnergyAtIndex(spaceToMoveIntoIndex);
+
+							typedef flEnergy::MoveVectorType MoveVecType;
+							PhysicsLib::Vector2D<MoveVecType>& curMovVec = energy.m_movementVector;
+							PhysicsLib::Vector2D<MoveVecType>& collidedMovVec = collidedWith.m_movementVector;
+							MoveVecType* curMovDir = nullptr;
+							MoveVecType* curMovDirOrth = nullptr;
+							MoveVecType* collidedMovDir = nullptr;
+							MoveVecType* collidedMovDirOrth = nullptr;
+							if (movDirection == flEnergy::Direction::UP || movDirection == flEnergy::Direction::DOWN)
+							{
+								curMovDir = &curMovVec.m_direction.y;
+								curMovDirOrth = &curMovVec.m_direction.x;
+								collidedMovDir = &collidedMovVec.m_direction.y;
+								collidedMovDirOrth = &collidedMovVec.m_direction.x;
+							}
+							else if (movDirection == flEnergy::Direction::LEFT || movDirection == flEnergy::Direction::RIGHT)
+							{
+								curMovDir = &curMovVec.m_direction.x;
+								curMovDirOrth = &curMovVec.m_direction.y;
+								collidedMovDir = &collidedMovVec.m_direction.x;
+								collidedMovDirOrth = &collidedMovVec.m_direction.y;
+							}
+							assert(curMovDir);
+							assert(curMovDirOrth);
+							assert(collidedMovDir);
+							assert(collidedMovDirOrth);
+
+							MoveVecType curOldMovScalar = curMovVec.m_scalar / (abs(*curMovDir) + abs(*curMovDirOrth)); //how many movement vec iterations we perform per second
+							MoveVecType curSpeedInCollDir = curOldMovScalar * *curMovDir;
+							MoveVecType collidedOldMovScalar = collidedMovVec.m_scalar / (abs(*collidedMovDir) + abs(*collidedMovDirOrth));
+							MoveVecType collidedSpeedInCollDir = collidedOldMovScalar * *collidedMovDir;
+							assert(curSpeedInCollDir > 0 || curSpeedInCollDir < 0);
+							assert(collidedSpeedInCollDir > 0 || collidedSpeedInCollDir < 0);
+
+							//swap movement speed of energies for collision axis and scale orth movement value to temporarily represent speed in orth direction, not just direction
+							*curMovDir = collidedSpeedInCollDir;
+							*curMovDirOrth = *curMovDirOrth * curOldMovScalar;
+							*collidedMovDir = curSpeedInCollDir;
+							*collidedMovDirOrth = *collidedMovDirOrth * collidedOldMovScalar;
+
+							//update movement vector scalar to contain new total speed (tile movements per second)
+							MoveVecType curNewSpeed = round(abs(*curMovDir) + abs(*curMovDirOrth));
+							curMovVec.m_scalar = curNewSpeed != 0.f ? curNewSpeed : 1.f;
+							MoveVecType collNewSpeed = round(abs(*collidedMovDir) + abs(*collidedMovDirOrth));
+							collidedMovVec.m_scalar = collNewSpeed != 0.f ? collNewSpeed : 1.f;
+							assert(curMovVec.m_scalar > 0 || curMovVec.m_scalar < 0);
+							assert(collidedMovVec.m_scalar > 0 || collidedMovVec.m_scalar < 0);
+
+							//pseudo-nomalise movement vector so that the smallest element is 1
+							MoveVecType curMovSmallest = abs(*curMovDir) > abs(*curMovDirOrth) ? abs(*curMovDirOrth) : abs(*curMovDir);
+							*curMovDir = round(*curMovDir/curMovSmallest);
+							*curMovDirOrth = round(*curMovDirOrth/curMovSmallest);
+							MoveVecType collMovSmallest = abs(*collidedMovDir) > abs(*collidedMovDirOrth) ? abs(*collidedMovDirOrth) : abs(*collidedMovDir);
+							*collidedMovDir = round(*collidedMovDir/collMovSmallest);
+							*collidedMovDirOrth = round(*collidedMovDirOrth/collMovSmallest);
+
+							collidedWith.m_currentMovementStore.Zero();
+						}
+
+						energy.m_currentMovementStore.Zero();
+					}
+				}
+			}
+		}
+	}
+
+#if 0
+	uint32_t frameStartTime = m_cumulativeFrameTime;
+	m_cumulativeFrameTime += _timeStep;
+	uint32_t frameEndTime = m_cumulativeFrameTime;
+	if (frameEndTime - frameStartTime < 1000) //skip trying to process frames longer than one second as we're probably debugging
+	{
+		std::vector<CollisionIteration> enIndexesToCollCount; //energyIndexesToCollisionCounts
+
+		/* Iterate through world Energy and calc any times within the previous frame duration that energy should have moved. Sort into buckets. */
+		EnergyMovementBuckets movementBuckets;
+		for (uint32_t i = 0; i < m_worldEnergy.size(); i++)
+		{
+			flEnergy& energy = m_worldEnergy[i];
+			uint32_t advanceEveryMs = static_cast<uint32_t>(1000.f/energy.m_movementVector.m_scalar);
+			uint32_t startingAdvances = frameStartTime/advanceEveryMs;
+			uint32_t endingAdvances = frameEndTime/advanceEveryMs;
+
+			assert(startingAdvances <= endingAdvances);
+			for (uint32_t a = startingAdvances; a < endingAdvances; a++)
+			{
+				uint32_t advanceTime = (a+1)*advanceEveryMs;
+				std::vector<CollisionIteration>& energyBucket = movementBuckets[advanceTime];
+				energyBucket.push_back(CollisionIteration{ i, 0 });
+			}
+
+			enIndexesToCollCount.push_back(CollisionIteration{ i,0 });
+		}
+
+		/* movement buckets is groups of energy indexes, sorted by movement times
+		*  iterate through and advance in order */
+		for (std::pair<uint32_t, std::vector<CollisionIteration>> bucket : movementBuckets)
+		{
+			uint32_t currentIterationTimestep = bucket.first;
+			std::vector<CollisionIteration>& collisionIterations = bucket.second;
+			for (CollisionIteration collisionIteration : collisionIterations)
+			{
+				bool oldData = false;
+				for (CollisionIteration const enIndexToCurCollIter : enIndexesToCollCount)
+				{
+					if (enIndexToCurCollIter.energyIndex == collisionIteration.energyIndex)
+					{
+						if (collisionIteration.iterationCount != enIndexToCurCollIter.iterationCount)
+						{
+							oldData = true;
+						}
+					}
+				}
+
+				if (!oldData)
+				{
+					flEnergy& curEnergy = m_worldEnergy[collisionIteration.energyIndex];
+					uint32_t spaceToMoveIntoIndex = Globals::NULL_INDEX;
+					flEnergy::Direction movDirection = flEnergy::Direction::ALL;
+					flVec2<flEnergy::MoveVectorType>& movementStore = curEnergy.m_currentMovementStore;
+					if (movementStore == 0)
+					{
+						//refresh movement vector
+						movementStore = curEnergy.m_movementVector.m_direction;
+					}
+
+					if (movementStore.x != 0)
+					{
+						if (movementStore.x > 0)
+						{
+							//set up for move right
+							spaceToMoveIntoIndex = GetIndexRight(curEnergy.m_indexInWorld);
+							movDirection = flEnergy::Direction::RIGHT;
+						}
+						else
+						{
+							//set up for move left
+							spaceToMoveIntoIndex = GetIndexLeft(curEnergy.m_indexInWorld);
+							movDirection = flEnergy::Direction::LEFT;
+						}
+
+						MoveTowardsZero(movementStore.x, 1.f);
+					}
+					else if (movementStore.y != 0)
+					{
+						if (movementStore.y > 0)
+						{
+							//set up for move up
+							spaceToMoveIntoIndex = GetIndexUp(curEnergy.m_indexInWorld);
+							movDirection = flEnergy::Direction::UP;
+						}
+						else
+						{
+							//set up for move down
+							spaceToMoveIntoIndex = GetIndexDown(curEnergy.m_indexInWorld);
+							movDirection = flEnergy::Direction::DOWN;
+						}
+
+						MoveTowardsZero(movementStore.y, 1.f);
+					}
+
+
+					//process movement/collisions
+					flSpace& currentSpace = GetSpaceAtIndex(curEnergy.m_indexInWorld);//m_worldGrid[curEnergy.m_indexInWorld];
+					flSpace& spaceToMoveInto = GetSpaceAtIndex(spaceToMoveIntoIndex);
+					if (spaceToMoveInto.m_energyIndex == Globals::NULL_INDEX)
+					{
+						//empty, just move
+						spaceToMoveInto.m_energyIndex = collisionIteration.energyIndex;
+						currentSpace.m_energyIndex = Globals::NULL_INDEX;
+
+						curEnergy.m_indexInWorld = spaceToMoveIntoIndex;
+					}
+					else
+					{
+						//collision
+						if (spaceToMoveInto.m_energyIndex == Globals::WALL_INDEX)
+						{
+							//at world bound, just reflect
+							if (movDirection == flEnergy::Direction::UP || movDirection == flEnergy::Direction::DOWN)
+								curEnergy.m_movementVector.m_direction.y *= -1;
+							else if (movDirection == flEnergy::Direction::LEFT || movDirection == flEnergy::Direction::RIGHT)
+								curEnergy.m_movementVector.m_direction.x *= -1;
+						}
+						else
+						{
+							flEnergy& collidedWith = m_worldEnergy[spaceToMoveInto.m_energyIndex];
+							flEnergy::MoveVectorType* curMovDir = nullptr;
+							flEnergy::MoveVectorType* curMovDirOrth = nullptr;
+							flEnergy::MoveVectorType* collidedWithMovDir = nullptr;
+							flEnergy::MoveVectorType* collidedWithMovDirOrth = nullptr;
+							if (movDirection == flEnergy::Direction::UP || movDirection == flEnergy::Direction::DOWN)
+							{
+								curMovDir = &curEnergy.m_movementVector.m_direction.y;
+								curMovDirOrth = &curEnergy.m_movementVector.m_direction.x;
+								collidedWithMovDir = &collidedWith.m_movementVector.m_direction.y;
+								collidedWithMovDirOrth = &collidedWith.m_movementVector.m_direction.x;
+							}
+							else if (movDirection == flEnergy::Direction::LEFT || movDirection == flEnergy::Direction::RIGHT)
+							{
+								curMovDir = &curEnergy.m_movementVector.m_direction.x;
+								curMovDirOrth = &curEnergy.m_movementVector.m_direction.y;
+								collidedWithMovDir = &collidedWith.m_movementVector.m_direction.x;
+								collidedWithMovDirOrth = &collidedWith.m_movementVector.m_direction.y;
+							}
+							assert(curMovDir);
+							assert(collidedWithMovDir);
+
+							bool opposite = *curMovDir * *collidedWithMovDir > 0.f ? false : true; //whether energies were moving in opposite directions or not before the collision
+							if (opposite)
+							{
+								//just reflect - no movement this frame
+								*curMovDir *= -1;
+								*collidedWithMovDir *= -1;
+							}
+#if 1
+							else
+							{
+								//TODO - move direction != movement speed. Need to make sure (1, z) pattern of move vectors is preserved - @TODO - debug getting zero values for move directions/move speeds
+								PhysicsLib::Vector2D<flEnergy::MoveVectorType>& curMovVec = curEnergy.m_movementVector;
+								flEnergy::MoveVectorType curDirectionTotal = abs(curMovVec.m_direction.x) + abs(curMovVec.m_direction.y);
+								flEnergy::MoveVectorType curSpeedInDir = (curMovVec.m_scalar/curDirectionTotal) * *curMovDir;
+								flEnergy::MoveVectorType curSpeedInOrth = (curMovVec.m_scalar/curDirectionTotal) * *curMovDirOrth;
+								assert(curSpeedInDir > 0 || curSpeedInDir < 0);
+								assert(curSpeedInOrth > 0 || curSpeedInOrth < 0);
+
+								PhysicsLib::Vector2D<flEnergy::MoveVectorType>& collidedMovVec = collidedWith.m_movementVector;
+								flEnergy::MoveVectorType collidedDirectionTotal = abs(collidedMovVec.m_direction.x) + abs(collidedMovVec.m_direction.y);
+								flEnergy::MoveVectorType collidedSpeedInDir = (collidedMovVec.m_scalar/collidedDirectionTotal) * *collidedWithMovDir;
+								flEnergy::MoveVectorType collidedSpeedInOrth = (collidedMovVec.m_scalar/collidedDirectionTotal) * *collidedWithMovDirOrth;
+								assert(collidedSpeedInDir > 0 || collidedSpeedInDir < 0);
+								assert(collidedSpeedInOrth > 0 || collidedSpeedInOrth < 0);
+
+								//swap speed in collision dir into vec move speeds
+								curMovVec.m_scalar = abs(curSpeedInOrth) + abs(collidedSpeedInDir);
+								collidedMovVec.m_scalar = abs(collidedSpeedInOrth) + abs(curSpeedInDir);
+
+								//swap speeds in collision direction & swap speed values into orth movement vector elements to be normalised in next step
+								*curMovDir = collidedSpeedInDir;
+								*curMovDirOrth = curSpeedInOrth;
+								*collidedWithMovDir = curSpeedInDir;
+								*collidedWithMovDirOrth = collidedSpeedInOrth;
+
+								//pseudo-normalise vectors, so that smallest element is 1 & swap mov vec elements in collision direction
+								flEnergy::MoveVectorType curSmallestMovElement = *curMovDir > *curMovDirOrth ? *curMovDirOrth : *curMovDir;
+								*curMovDir = *curMovDir/curSmallestMovElement;
+								*curMovDirOrth = *curMovDirOrth/curSmallestMovElement;
+
+								flEnergy::MoveVectorType collidedSmallestMovElement = *collidedWithMovDir > *collidedWithMovDirOrth ? *collidedWithMovDirOrth : *collidedWithMovDir;
+								*collidedWithMovDir = *collidedWithMovDir/collidedSmallestMovElement;
+								*collidedWithMovDirOrth = *collidedWithMovDirOrth/collidedSmallestMovElement;
+
+								
+
+								//update iteration count so old movement times are ignored (as they were calculated from our previous speed)
+								//caculate and add new movement times to movement bucket array
+								uint32_t collisionIterCountForCur;
+								uint32_t collisionIterCountForCollided;
+								for (CollisionIteration& indexToCollCount : enIndexesToCollCount)
+								{
+									if (indexToCollCount.energyIndex == GetSpaceAtIndex(curEnergy.m_indexInWorld).m_energyIndex)
+									{
+										collisionIterCountForCur = ++indexToCollCount.iterationCount;
+									}
+									if (indexToCollCount.energyIndex == GetSpaceAtIndex(collidedWith.m_indexInWorld).m_energyIndex)
+									{
+										collisionIterCountForCollided = ++indexToCollCount.iterationCount;
+									}
+								}
+
+								auto CalcNewMovementTimes = [&movementBuckets, currentIterationTimestep, frameEndTime]
+								(PhysicsLib::Vector2D<flEnergy::MoveVectorType> const& _movementVector, uint32_t _energyIndex, uint32_t _collisionIteration) -> void
+								{
+									uint32_t advanceEveryMs = static_cast<uint32_t>(1000.f/_movementVector.m_scalar);
+									uint32_t startingAdvances = currentIterationTimestep/advanceEveryMs;
+									uint32_t endingAdvances = frameEndTime/advanceEveryMs;
+
+									assert(startingAdvances <= endingAdvances);
+									for (uint32_t a = startingAdvances; a < endingAdvances; a++)
+									{
+										uint32_t advanceTime = (a+1)*advanceEveryMs;
+										std::vector<CollisionIteration>& energyBucket = movementBuckets[advanceTime];
+										energyBucket.push_back(CollisionIteration{ _energyIndex, _collisionIteration });
+									}
+								};
+								CalcNewMovementTimes(curMovVec, GetSpaceAtIndex(curEnergy.m_indexInWorld).m_energyIndex, collisionIterCountForCur);
+								CalcNewMovementTimes(collidedMovVec, GetSpaceAtIndex(collidedWith.m_indexInWorld).m_energyIndex, collisionIterCountForCollided);
+								
+							}
+#endif
+							collidedWith.m_currentMovementStore.Zero();
+						}
+
+						curEnergy.m_currentMovementStore.Zero();
+					}
+				}
+			}
+		}
+	}
+#endif
+
+#if 0
+	//update movement, check & process collisions
+	{
+		/*
+		*  1. Iterate through energy array one element at a time.
+		*  2. 
+		*
+		*
+		*/
+		std::function<void(uint32_t, uint32_t)> ProcessMovementRecursive;
+		ProcessMovementRecursive = [this, &ProcessMovementRecursive, _timeStep](uint32_t _waitingIndex, uint32_t _msAdvanced) -> void
+		{
+			flEnergy::MoveVectorType prevSpeed;
+			for (uint32_t i = 0; i < _waitingIndex; i++)
+			{
+				flEnergy& curEnergy = m_worldEnergy[i];
+				PhysicsLib::Vector2D<flEnergy::MoveVectorType>& curMovVec = curEnergy.m_movementVector;
+				if (i == 0)
+					prevSpeed = curMovVec.m_scalar; //base value
+
+				uint32_t moveEveryMs = static_cast<uint32_t>(1000.f/curMovVec.m_scalar);
+				if (moveEveryMs <= _timeStep + curEnergy.m_accumulatedMoveTime) //check if enough time has passed to move
+				{
+
+					/*@current - trying to figure out if accumulated movetime could affect order in which cells should move
+					*		   - what is accumulated time/ms, per element, in this context?
+					*/
+
+
+					flEnergy::MoveVectorType speedDif = curMovVec.m_scalar - prevSpeed;
+					if (speedDif > 0.f)
+					{
+						uint32_t msAdvanced = static_cast<uint32_t>(1000.f/speedDif);
+						ProcessMovementRecursive(i, speedDif); //recursively iterate from start of array to update all elements that will have moved in the milliseconds we've advanced
+					}
+
+					//once we've returned from recursive calls, we're now free to process this index's movement
+					//if ()
+				}
+				else
+				{
+					curEnergy.m_accumulatedMoveTime += _timeStep;
+				}
+			}
+		};
+		ProcessMovementRecursive(m_worldEnergy.size(), 0.f);
+	}
+#endif
 
 
 //half finished code for points leaving movement trails in order to check if two points cross movement paths
@@ -129,7 +589,7 @@ bool WorldGrid::UpdateStep
 			{
 				uint32_t startingIndex = i;
 				startingPoint.m_timeEntered = 0;
-				PhysicsLib::Vector2D<flPoint::PointVectorType>& movVec = startingPoint.m_movementVector;
+				PhysicsLib::Vector2D<flPoint::MoveVectorType>& movVec = startingPoint.m_movementVector;
 				//movVec.m_startingPoint; //currentPos in worldGrid (needed?)
 
 				movVec.m_direction; //movement ratio
@@ -153,7 +613,7 @@ bool WorldGrid::UpdateStep
 						flPoint& currentPoint = m_worldGrid[currentIndex];
 
 						//maintain a vector store checking how much of current move cycle ratio we've completed
-						flVec2<flPoint::PointVectorType>& movRatioStore = currentPoint.m_currentMovementStore;
+						flVec2<flPoint::MoveVectorType>& movRatioStore = currentPoint.m_currentMovementStore;
 						if (movRatioStore == 0)
 						{
 							movRatioStore = movVec.m_direction; //current move cycle exhausted - refresh
@@ -240,15 +700,11 @@ bool WorldGrid::UpdateStep
 
 //half finsihed code moving points and reflecting at world boundary
 #if 0
-				typedef flPoint::PointVectorType flPointVecType;
+				typedef flPoint::MoveVectorType flPointVecType;
 				flVec2<flPointVecType>& currentPos = p.m_movementVector.m_startingPoint;
 				flVec2<flPointVecType>& currentMoveVec = p.m_movementVector.m_direction;
 				flVec2<flPointVecType> movThisFrame = currentMoveVec * 0.001f * static_cast<float>(_timeStep);
 				flVec2<flPointVecType> nextPos = currentPos + movThisFrame; //projection with no collisions
-
-
-
-
 
 
 				flVec2<int32_t> currentPosInt = flVec2<int32_t>(static_cast<int32_t>(round(currentPos.x)),
@@ -348,26 +804,14 @@ bool WorldGrid::UpdateStep
 	******************************
 	*	- Add handling to intersection finder for verticle lines and parrallel lines
 	*	- Fix conversion from Polar coordinates to Cartesian for 
-	*	1. Create most straight forward implementation of physics can imagine, representing points as cells in grid to work with what's
-	*	   already coded.
-	*		a. For each point calc intersection with every other point and find out if they collide.
-	*			i. Data : movement vector (in terms of grid units)
-	*					  movement speed (vector scalar) (in terms of grid units)
-	*					  no need for starting pos as this is represented by grid index
-				ii. need to decide if we want to have an array storing points that we sim and then use to update world grid or if
-					we just iterate through world grid and check each tile to see if its energised and if we need to do something.
-					Leaning towards former as no need to check empty tiles in energy can't be created.
-	*		b. If no collisions, set current index energy to 0, get index of new pos and set energy of that point to 1.
-	*
-	*	2. Create new GameData game frame/layer for visualising and playing around with math functions to act as a interactive workbook
+	*	1. Create new GameData game frame/layer for visualising and playing around with math functions to act as a interactive workbook
 	*	   for when trying to solve difficult math problems
-	*		a. e.g. circle where can vary position of radial vector and an output of cos/sin/tan graph to visualise how it changes.
 	*/
 
 	return true;
 }
 
-//breif - 
+//brief - get distances in grid tiles from center to edge of worldGrid
 flVec2<float> const WorldGrid::GetCenterToEdgeOffsets() const
 {
 	flVec2<float> widthHeightOffset;
@@ -389,12 +833,12 @@ flVec2<int32_t> WorldGrid::Pos1DToPos2DInt(uint32_t _index)
 
 	return pos2D;
 }
-flVec2<flEnergy::PointVectorType> WorldGrid::Pos1DToPos2D(uint32_t _index)
+flVec2<flEnergy::MoveVectorType> WorldGrid::Pos1DToPos2D(uint32_t _index)
 {
 	assert(_index < Globals::TOTAL_WORLD_SIZE);
-	flVec2<flEnergy::PointVectorType> pos2D;
-	pos2D.x = static_cast<flEnergy::PointVectorType>(_index % Globals::WORLD_X_SIZE);
-	pos2D.y = static_cast<flEnergy::PointVectorType>(_index / Globals::WORLD_X_SIZE);
+	flVec2<flEnergy::MoveVectorType> pos2D;
+	pos2D.x = static_cast<flEnergy::MoveVectorType>(_index % Globals::WORLD_X_SIZE);
+	pos2D.y = static_cast<flEnergy::MoveVectorType>(_index / Globals::WORLD_X_SIZE);
 	assert(static_cast<int32_t>(round(pos2D.x)) < Globals::WORLD_X_SIZE
 		&& static_cast<int32_t>(round(pos2D.y)) < Globals::WORLD_Y_SIZE);
 
@@ -411,9 +855,21 @@ uint32_t WorldGrid::Pos2DToPos1D(flVec2<int32_t> _pos2D)
 	return index;
 }
 
-flEnergy& WorldGrid::GetEnergyAtIndex(uint32_t _index)
+flSpace& WorldGrid::GetSpaceAtIndex(uint32_t _index) 
 {
-	if (_index == -1)
+	if (_index == Globals::NULL_INDEX)
+	{
+		return m_nullSpace;
+	}
+	else
+	{
+		return m_worldGrid[_index];
+	}
+}
+
+flEnergy& WorldGrid::GetEnergyAtIndex(uint32_t _index) 
+{
+	if (_index == Globals::NULL_INDEX)
 	{
 		return m_nullEnergy;
 	}
@@ -424,48 +880,12 @@ flEnergy& WorldGrid::GetEnergyAtIndex(uint32_t _index)
 	}
 }
 
-flEnergy& WorldGrid::GetPointUp
-(
-	uint32_t _currentPointIndex
-)
-{
-	uint32_t indexUp = GetIndexUp(_currentPointIndex);
-	return GetEnergyAtIndex(indexUp);
-}
-
-flEnergy& WorldGrid::GetPointDown
-(
-	uint32_t _currentPointIndex
-)
-{
-	uint32_t indexDown = GetIndexDown(_currentPointIndex);
-	return GetEnergyAtIndex(indexDown);
-}
-
-flEnergy& WorldGrid::GetPointLeft
-(
-	uint32_t _currentPointIndex
-)
-{
-	uint32_t indexLeft = GetIndexLeft(_currentPointIndex);
-	return GetEnergyAtIndex(indexLeft);
-}
-
-flEnergy& WorldGrid::GetPointRight
-(
-	uint32_t _currentPointIndex
-)
-{
-	uint32_t indexRight = GetIndexRight(_currentPointIndex);
-	return GetEnergyAtIndex(indexRight);
-}
-
 uint32_t WorldGrid::GetIndexUp(uint32_t _currentPointIndex) const
 {
 	if (_currentPointIndex < Globals::WORLD_X_SIZE)
 	{
 		//top row, no up to get
-		return -1;
+		return Globals::NULL_INDEX;
 	}
 	else
 	{
@@ -477,7 +897,7 @@ uint32_t WorldGrid::GetIndexDown(uint32_t _currentPointIndex) const
 	if (_currentPointIndex > Globals::TOTAL_WORLD_SIZE-1 - Globals::WORLD_X_SIZE)
 	{
 		//bottom row, no down to get
-		return -1;
+		return Globals::NULL_INDEX;
 	}
 	else
 	{
@@ -489,7 +909,7 @@ uint32_t WorldGrid::GetIndexLeft(uint32_t _currentPointIndex) const
 	if (_currentPointIndex % Globals::WORLD_X_SIZE == 0)
 	{
 		//left most row, no left to get
-		return -1;
+		return Globals::NULL_INDEX;
 	}
 	else
 	{
@@ -500,7 +920,7 @@ uint32_t WorldGrid::GetIndexRight(uint32_t _currentPointIndex) const
 {
 	if (_currentPointIndex % Globals::WORLD_X_SIZE == Globals::WORLD_X_SIZE-1)
 	{
-		return -1;
+		return Globals::NULL_INDEX;
 	}
 	else
 	{

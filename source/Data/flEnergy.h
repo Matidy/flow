@@ -28,9 +28,9 @@ public:
 	*  Design of world movement/access means we should only really be accessing energy via its associated flSpace element */
 	uint32_t m_indexInWorld;
 
-	typedef float PointVectorType;
-	PhysicsLib::Vector2D<PointVectorType> m_movementVector; //storing as float as movement per frame is sub division of movement per second
-	flVec2<PointVectorType> m_currentMovementStore; //stores how much of current movement iteration we've completed
+	typedef float MoveVectorType;
+	PhysicsLib::Vector2D<MoveVectorType> m_movementVector; //storing as float as movement per frame is sub division of movement per second
+	flVec2<MoveVectorType> m_currentMovementStore; //stores how much of current movement iteration we've completed
 	uint32_t m_accumulatedMoveTime;
 
 	//whether or not this point reflects all energy that interacts with it, i.e. if it is 'moveable' or not
@@ -44,12 +44,13 @@ public:
 		LEFT,
 		RIGHT,
 		ALL
-	} m_direction = ALL;
+	};
+	Direction m_cardinalDirection = ALL;
 	
 	flEnergy
 	(
 		int16_t _energy,
-		PhysicsLib::Vector2D<PointVectorType> _movVec,
+		PhysicsLib::Vector2D<MoveVectorType> _movVec,
 		bool _moveable
 	)
 		: m_energy(_energy),
@@ -72,7 +73,7 @@ public:
 	void Nullify()
 	{
 		m_energy = 0;
-		m_movementVector = PhysicsLib::Vector2D<PointVectorType>();
+		m_movementVector = PhysicsLib::Vector2D<MoveVectorType>();
 	}
 
 private:
