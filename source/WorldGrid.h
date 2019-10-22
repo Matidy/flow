@@ -1,5 +1,7 @@
 #include <vector>
 
+#include <SDL_rect.h>
+
 #include "Globals.h"
 #include "Data/flEnergy.h"
 #include "Data/flSpace.h"
@@ -23,6 +25,8 @@ public:
 	virtual void DefineHeldInput(uint32_t _timeStep) override final;
 	virtual void KeyPressedInput(SDL_Scancode const& _key) override final;
 	virtual void DefineChordInput(uint32_t _timeStep) override final;
+	virtual void MouseDownInput(eMouseButtonType const _buttonType, flVec2<int> _mousePos) override final;
+	virtual void MouseUpInput(eMouseButtonType const _buttonType, flVec2<int> _mousePos) override final;
 
 	WorldGrid(RenderCoreIF& _renderCoreIF, InputCoreIF& _inputCoreIF);
 	~WorldGrid();
@@ -31,6 +35,9 @@ public:
 	bool UpdateStep(uint32_t const _timeStep);
 
 private:
+	void UpdateClaimRectBounds(flVec2<int> _mousePos);
+	void ClaimTiles();
+
 	flVec2<flEnergy::MoveVectorType> const GetCenterToEdgeOffsets() const;
 
 	flVec2<int32_t>	Pos1DToPos2DInt(uint32_t _index);
@@ -42,6 +49,11 @@ private:
 	uint32_t GetIndexDown(uint32_t _currentPointIndex) const;
 	uint32_t GetIndexLeft(uint32_t _currentPointIndex) const;
 	uint32_t GetIndexRight(uint32_t _currentPointIndex) const;
+
+	flVec2<float> PixelPosInTileWorld(uint32_t _pixelX, uint32_t _pixelY) const;
+	flVec2<float> TilePosToPixelPos(int32_t _col, int32_t _row) const;
+	float GetPixelToTileScalar() const { return (m_cullingViewport.m_xExtension*2)/Globals::WINDOW_WIDTH; }
+	float GetTileToPixelScalar() const { return Globals::WINDOW_WIDTH/(m_cullingViewport.m_xExtension*2); }
 
 	/**** world array data ****
 	* initially just a contiguous array, accessing different arrays using width/height world constants
@@ -57,7 +69,31 @@ private:
 	uint32_t const m_energyToSpaceRatio = 128;
 	uint32_t m_cumulativeFrameTime = 0;
 
-	
+	//dimensions of mouse cursor quad in pixels
+	flVec2<float> m_mouseCursorDim;
+	SDL_Point m_cursorBox[5];
+	bool m_cursorInWorld = false;
+
+	enum eClaimState
+	{
+		NoOp1		=	0,
+		Unclaim		=	1 << 0,
+		Claim		=	1 << 1,
+		NoOp2		=   3
+	};
+	uint8_t m_claimBitMap = 0u;
+
+	struct ClaimRect
+	{
+		 int32_t m_leftCol = -1;
+		 int32_t m_topRow = -1;
+		 int32_t m_rightCol = -1;
+		 int32_t m_bottomRow = -1;
+
+		 eClaimState m_associatedClaimState = NoOp1; //what change to tile state this data is associated with
+	};
+	ClaimRect m_claimRect;
+
 	struct CullingViewport
 	{
 		static constexpr float m_xExtensionDefault = static_cast<float>(Globals::TILE_DRAW_DIMENSIONS*Globals::WORLD_X_SIZE) + 16.f;

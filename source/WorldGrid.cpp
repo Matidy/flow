@@ -20,6 +20,7 @@ WorldGrid::WorldGrid(RenderCoreIF& _renderCoreIF, InputCoreIF& _inputCoreIF)
 	: RenderDelegate(_renderCoreIF),
 	  InputDelegate(_inputCoreIF),
 	  m_nullEnergy(flEnergy(0xffff, PhysicsLib::Vector2D<flEnergy::MoveVectorType>(), false)),
+	  m_mouseCursorDim(32u, 32u),
 	  m_cullingViewport(flVec2<float>(0.f, 0.f))
 {
 	assert(Globals::TOTAL_WORLD_SIZE < 0xffffffff);
@@ -29,6 +30,10 @@ WorldGrid::WorldGrid(RenderCoreIF& _renderCoreIF, InputCoreIF& _inputCoreIF)
 	std::srand(static_cast<unsigned int>(std::time(nullptr)));
 
 	m_nullSpace.m_energyIndex = Globals::WALL_INDEX;
+
+	flVec2<int> mousePos;
+	m_inputCoreIF.GetMousePos(mousePos);
+	UpdateClaimRectBounds(mousePos);
 }
 
 WorldGrid::~WorldGrid()
@@ -140,675 +145,307 @@ bool WorldGrid::UpdateStep
 	uint32_t _timeStep
 )
 {
-	uint32_t frameStartTime = m_cumulativeFrameTime;
-	m_cumulativeFrameTime += _timeStep;
-	uint32_t frameEndTime = m_cumulativeFrameTime;
-	for (uint32_t t = 1; t < _timeStep+1; t++)
+	//physics movement and collision processing
 	{
-		for (uint32_t i = 0; i < m_worldEnergy.size(); i++)
+		uint32_t frameStartTime = m_cumulativeFrameTime;
+		m_cumulativeFrameTime += _timeStep;
+		uint32_t frameEndTime = m_cumulativeFrameTime;
+		for (uint32_t t = 1; t < _timeStep+1; t++)
 		{
-			flEnergy& energy = m_worldEnergy[i];
-			uint32_t advanceEveryMs = static_cast<uint32_t>(1000.f/energy.m_movementVector.m_scalar);
-			uint32_t startingAdvances = frameStartTime/advanceEveryMs;
-			uint32_t endingAdvances = frameEndTime/advanceEveryMs;
-
-			assert(startingAdvances <= endingAdvances);
-			for (uint32_t a = startingAdvances; a < endingAdvances; a++)
+			for (uint32_t i = 0; i < m_worldEnergy.size(); i++)
 			{
-				uint32_t advanceTime = (a+1)*advanceEveryMs;
-				if (advanceTime == frameStartTime + t)
+				flEnergy& energy = m_worldEnergy[i];
+				uint32_t advanceEveryMs = static_cast<uint32_t>(1000.f/energy.m_movementVector.m_scalar);
+				uint32_t startingAdvances = frameStartTime/advanceEveryMs;
+				uint32_t endingAdvances = frameEndTime/advanceEveryMs;
+
+				assert(startingAdvances <= endingAdvances);
+				for (uint32_t a = startingAdvances; a < endingAdvances; a++)
 				{
-					uint32_t spaceToMoveIntoIndex = Globals::NULL_INDEX;
-					flEnergy::Direction movDirection = flEnergy::Direction::ALL;
-					flVec2<flEnergy::MoveVectorType>& movementStore = energy.m_currentMovementStore;
-					if (movementStore == 0)
+					uint32_t advanceTime = (a+1)*advanceEveryMs;
+					if (advanceTime == frameStartTime + t)
 					{
-						//refresh movement vector
-						movementStore = energy.m_movementVector.m_direction;
-					}
-
-					if (movementStore.x != 0)
-					{
-						if (movementStore.x > 0)
+						uint32_t spaceToMoveIntoIndex = Globals::NULL_INDEX;
+						flEnergy::Direction movDirection = flEnergy::Direction::ALL;
+						flVec2<flEnergy::MoveVectorType>& movementStore = energy.m_currentMovementStore;
+						if (movementStore == 0)
 						{
-							//set up for move right
-							spaceToMoveIntoIndex = GetIndexRight(energy.m_indexInWorld);
-							movDirection = flEnergy::Direction::RIGHT;
-						}
-						else
-						{
-							//set up for move left
-							spaceToMoveIntoIndex = GetIndexLeft(energy.m_indexInWorld);
-							movDirection = flEnergy::Direction::LEFT;
+							//refresh movement vector
+							movementStore = energy.m_movementVector.m_direction;
 						}
 
-						MoveTowardsZero(movementStore.x, 1.f);
-					}
-					else if (movementStore.y != 0)
-					{
-						if (movementStore.y > 0)
+						if (movementStore.x != 0)
 						{
-							//set up for move up
-							spaceToMoveIntoIndex = GetIndexUp(energy.m_indexInWorld);
-							movDirection = flEnergy::Direction::UP;
-						}
-						else
-						{
-							//set up for move down
-							spaceToMoveIntoIndex = GetIndexDown(energy.m_indexInWorld);
-							movDirection = flEnergy::Direction::DOWN;
-						}
-
-						MoveTowardsZero(movementStore.y, 1.f);
-					}
-
-					//process movement/collisions
-					flSpace& currentSpace = GetSpaceAtIndex(energy.m_indexInWorld);//m_worldGrid[curEnergy.m_indexInWorld];
-					flSpace& spaceToMoveInto = GetSpaceAtIndex(spaceToMoveIntoIndex);
-					if (spaceToMoveInto.m_energyIndex == Globals::NULL_INDEX)
-					{
-						//empty, just move
-						spaceToMoveInto.m_energyIndex = i;
-						currentSpace.m_energyIndex = Globals::NULL_INDEX;
-
-						energy.m_indexInWorld = spaceToMoveIntoIndex;
-					}
-					else
-					{
-						//collision
-						if (spaceToMoveInto.m_energyIndex == Globals::WALL_INDEX)
-						{
-							//at world bound, just reflect
-							if (movDirection == flEnergy::Direction::UP || movDirection == flEnergy::Direction::DOWN)
-								energy.m_movementVector.m_direction.y *= -1;
-							else if (movDirection == flEnergy::Direction::LEFT || movDirection == flEnergy::Direction::RIGHT)
-								energy.m_movementVector.m_direction.x *= -1;
-						}
-						else
-						{
-							flEnergy& collidedWith = GetEnergyAtIndex(spaceToMoveIntoIndex);
-
-							typedef flEnergy::MoveVectorType MoveVecType;
-							PhysicsLib::Vector2D<MoveVecType>& curMovVec = energy.m_movementVector;
-							PhysicsLib::Vector2D<MoveVecType>& collidedMovVec = collidedWith.m_movementVector;
-							MoveVecType* curMovDir = nullptr;
-							MoveVecType* curMovDirOrth = nullptr;
-							MoveVecType* collidedMovDir = nullptr;
-							MoveVecType* collidedMovDirOrth = nullptr;
-							if (movDirection == flEnergy::Direction::UP || movDirection == flEnergy::Direction::DOWN)
+							if (movementStore.x > 0)
 							{
-								curMovDir = &curMovVec.m_direction.y;
-								curMovDirOrth = &curMovVec.m_direction.x;
-								collidedMovDir = &collidedMovVec.m_direction.y;
-								collidedMovDirOrth = &collidedMovVec.m_direction.x;
+								//set up for move right
+								spaceToMoveIntoIndex = GetIndexRight(energy.m_indexInWorld);
+								movDirection = flEnergy::Direction::RIGHT;
 							}
-							else if (movDirection == flEnergy::Direction::LEFT || movDirection == flEnergy::Direction::RIGHT)
-							{
-								curMovDir = &curMovVec.m_direction.x;
-								curMovDirOrth = &curMovVec.m_direction.y;
-								collidedMovDir = &collidedMovVec.m_direction.x;
-								collidedMovDirOrth = &collidedMovVec.m_direction.y;
-							}
-							assert(curMovDir);
-							assert(curMovDirOrth);
-							assert(collidedMovDir);
-							assert(collidedMovDirOrth);
-
-							MoveVecType curOldMovScalar = curMovVec.m_scalar / (abs(*curMovDir) + abs(*curMovDirOrth)); //how many movement vec iterations we perform per second
-							MoveVecType curSpeedInCollDir = curOldMovScalar * *curMovDir;
-							MoveVecType collidedOldMovScalar = collidedMovVec.m_scalar / (abs(*collidedMovDir) + abs(*collidedMovDirOrth));
-							MoveVecType collidedSpeedInCollDir = collidedOldMovScalar * *collidedMovDir;
-							assert(curSpeedInCollDir > 0 || curSpeedInCollDir < 0);
-							assert(collidedSpeedInCollDir > 0 || collidedSpeedInCollDir < 0);
-
-							//swap movement speed of energies for collision axis and scale orth movement value to temporarily represent speed in orth direction, not just direction
-							*curMovDir = collidedSpeedInCollDir;
-							*curMovDirOrth = *curMovDirOrth * curOldMovScalar;
-							*collidedMovDir = curSpeedInCollDir;
-							*collidedMovDirOrth = *collidedMovDirOrth * collidedOldMovScalar;
-
-							//update movement vector scalar to contain new total speed (tile movements per second)
-							MoveVecType curNewSpeed = round(abs(*curMovDir) + abs(*curMovDirOrth));
-							curMovVec.m_scalar = curNewSpeed != 0.f ? curNewSpeed : 1.f;
-							MoveVecType collNewSpeed = round(abs(*collidedMovDir) + abs(*collidedMovDirOrth));
-							collidedMovVec.m_scalar = collNewSpeed != 0.f ? collNewSpeed : 1.f;
-							assert(curMovVec.m_scalar > 0 || curMovVec.m_scalar < 0);
-							assert(collidedMovVec.m_scalar > 0 || collidedMovVec.m_scalar < 0);
-
-							//pseudo-nomalise movement vector so that the smallest element is 1
-							MoveVecType curMovSmallest = abs(*curMovDir) > abs(*curMovDirOrth) ? abs(*curMovDirOrth) : abs(*curMovDir);
-							*curMovDir = round(*curMovDir/curMovSmallest);
-							*curMovDirOrth = round(*curMovDirOrth/curMovSmallest);
-							MoveVecType collMovSmallest = abs(*collidedMovDir) > abs(*collidedMovDirOrth) ? abs(*collidedMovDirOrth) : abs(*collidedMovDir);
-							*collidedMovDir = round(*collidedMovDir/collMovSmallest);
-							*collidedMovDirOrth = round(*collidedMovDirOrth/collMovSmallest);
-
-							collidedWith.m_currentMovementStore.Zero();
-						}
-
-						energy.m_currentMovementStore.Zero();
-					}
-				}
-			}
-		}
-	}
-
-#if 0
-	uint32_t frameStartTime = m_cumulativeFrameTime;
-	m_cumulativeFrameTime += _timeStep;
-	uint32_t frameEndTime = m_cumulativeFrameTime;
-	if (frameEndTime - frameStartTime < 1000) //skip trying to process frames longer than one second as we're probably debugging
-	{
-		std::vector<CollisionIteration> enIndexesToCollCount; //energyIndexesToCollisionCounts
-
-		/* Iterate through world Energy and calc any times within the previous frame duration that energy should have moved. Sort into buckets. */
-		EnergyMovementBuckets movementBuckets;
-		for (uint32_t i = 0; i < m_worldEnergy.size(); i++)
-		{
-			flEnergy& energy = m_worldEnergy[i];
-			uint32_t advanceEveryMs = static_cast<uint32_t>(1000.f/energy.m_movementVector.m_scalar);
-			uint32_t startingAdvances = frameStartTime/advanceEveryMs;
-			uint32_t endingAdvances = frameEndTime/advanceEveryMs;
-
-			assert(startingAdvances <= endingAdvances);
-			for (uint32_t a = startingAdvances; a < endingAdvances; a++)
-			{
-				uint32_t advanceTime = (a+1)*advanceEveryMs;
-				std::vector<CollisionIteration>& energyBucket = movementBuckets[advanceTime];
-				energyBucket.push_back(CollisionIteration{ i, 0 });
-			}
-
-			enIndexesToCollCount.push_back(CollisionIteration{ i,0 });
-		}
-
-		/* movement buckets is groups of energy indexes, sorted by movement times
-		*  iterate through and advance in order */
-		for (std::pair<uint32_t, std::vector<CollisionIteration>> bucket : movementBuckets)
-		{
-			uint32_t currentIterationTimestep = bucket.first;
-			std::vector<CollisionIteration>& collisionIterations = bucket.second;
-			for (CollisionIteration collisionIteration : collisionIterations)
-			{
-				bool oldData = false;
-				for (CollisionIteration const enIndexToCurCollIter : enIndexesToCollCount)
-				{
-					if (enIndexToCurCollIter.energyIndex == collisionIteration.energyIndex)
-					{
-						if (collisionIteration.iterationCount != enIndexToCurCollIter.iterationCount)
-						{
-							oldData = true;
-						}
-					}
-				}
-
-				if (!oldData)
-				{
-					flEnergy& curEnergy = m_worldEnergy[collisionIteration.energyIndex];
-					uint32_t spaceToMoveIntoIndex = Globals::NULL_INDEX;
-					flEnergy::Direction movDirection = flEnergy::Direction::ALL;
-					flVec2<flEnergy::MoveVectorType>& movementStore = curEnergy.m_currentMovementStore;
-					if (movementStore == 0)
-					{
-						//refresh movement vector
-						movementStore = curEnergy.m_movementVector.m_direction;
-					}
-
-					if (movementStore.x != 0)
-					{
-						if (movementStore.x > 0)
-						{
-							//set up for move right
-							spaceToMoveIntoIndex = GetIndexRight(curEnergy.m_indexInWorld);
-							movDirection = flEnergy::Direction::RIGHT;
-						}
-						else
-						{
-							//set up for move left
-							spaceToMoveIntoIndex = GetIndexLeft(curEnergy.m_indexInWorld);
-							movDirection = flEnergy::Direction::LEFT;
-						}
-
-						MoveTowardsZero(movementStore.x, 1.f);
-					}
-					else if (movementStore.y != 0)
-					{
-						if (movementStore.y > 0)
-						{
-							//set up for move up
-							spaceToMoveIntoIndex = GetIndexUp(curEnergy.m_indexInWorld);
-							movDirection = flEnergy::Direction::UP;
-						}
-						else
-						{
-							//set up for move down
-							spaceToMoveIntoIndex = GetIndexDown(curEnergy.m_indexInWorld);
-							movDirection = flEnergy::Direction::DOWN;
-						}
-
-						MoveTowardsZero(movementStore.y, 1.f);
-					}
-
-
-					//process movement/collisions
-					flSpace& currentSpace = GetSpaceAtIndex(curEnergy.m_indexInWorld);//m_worldGrid[curEnergy.m_indexInWorld];
-					flSpace& spaceToMoveInto = GetSpaceAtIndex(spaceToMoveIntoIndex);
-					if (spaceToMoveInto.m_energyIndex == Globals::NULL_INDEX)
-					{
-						//empty, just move
-						spaceToMoveInto.m_energyIndex = collisionIteration.energyIndex;
-						currentSpace.m_energyIndex = Globals::NULL_INDEX;
-
-						curEnergy.m_indexInWorld = spaceToMoveIntoIndex;
-					}
-					else
-					{
-						//collision
-						if (spaceToMoveInto.m_energyIndex == Globals::WALL_INDEX)
-						{
-							//at world bound, just reflect
-							if (movDirection == flEnergy::Direction::UP || movDirection == flEnergy::Direction::DOWN)
-								curEnergy.m_movementVector.m_direction.y *= -1;
-							else if (movDirection == flEnergy::Direction::LEFT || movDirection == flEnergy::Direction::RIGHT)
-								curEnergy.m_movementVector.m_direction.x *= -1;
-						}
-						else
-						{
-							flEnergy& collidedWith = m_worldEnergy[spaceToMoveInto.m_energyIndex];
-							flEnergy::MoveVectorType* curMovDir = nullptr;
-							flEnergy::MoveVectorType* curMovDirOrth = nullptr;
-							flEnergy::MoveVectorType* collidedWithMovDir = nullptr;
-							flEnergy::MoveVectorType* collidedWithMovDirOrth = nullptr;
-							if (movDirection == flEnergy::Direction::UP || movDirection == flEnergy::Direction::DOWN)
-							{
-								curMovDir = &curEnergy.m_movementVector.m_direction.y;
-								curMovDirOrth = &curEnergy.m_movementVector.m_direction.x;
-								collidedWithMovDir = &collidedWith.m_movementVector.m_direction.y;
-								collidedWithMovDirOrth = &collidedWith.m_movementVector.m_direction.x;
-							}
-							else if (movDirection == flEnergy::Direction::LEFT || movDirection == flEnergy::Direction::RIGHT)
-							{
-								curMovDir = &curEnergy.m_movementVector.m_direction.x;
-								curMovDirOrth = &curEnergy.m_movementVector.m_direction.y;
-								collidedWithMovDir = &collidedWith.m_movementVector.m_direction.x;
-								collidedWithMovDirOrth = &collidedWith.m_movementVector.m_direction.y;
-							}
-							assert(curMovDir);
-							assert(collidedWithMovDir);
-
-							bool opposite = *curMovDir * *collidedWithMovDir > 0.f ? false : true; //whether energies were moving in opposite directions or not before the collision
-							if (opposite)
-							{
-								//just reflect - no movement this frame
-								*curMovDir *= -1;
-								*collidedWithMovDir *= -1;
-							}
-#if 1
 							else
 							{
-								//TODO - move direction != movement speed. Need to make sure (1, z) pattern of move vectors is preserved - @TODO - debug getting zero values for move directions/move speeds
-								PhysicsLib::Vector2D<flEnergy::MoveVectorType>& curMovVec = curEnergy.m_movementVector;
-								flEnergy::MoveVectorType curDirectionTotal = abs(curMovVec.m_direction.x) + abs(curMovVec.m_direction.y);
-								flEnergy::MoveVectorType curSpeedInDir = (curMovVec.m_scalar/curDirectionTotal) * *curMovDir;
-								flEnergy::MoveVectorType curSpeedInOrth = (curMovVec.m_scalar/curDirectionTotal) * *curMovDirOrth;
-								assert(curSpeedInDir > 0 || curSpeedInDir < 0);
-								assert(curSpeedInOrth > 0 || curSpeedInOrth < 0);
-
-								PhysicsLib::Vector2D<flEnergy::MoveVectorType>& collidedMovVec = collidedWith.m_movementVector;
-								flEnergy::MoveVectorType collidedDirectionTotal = abs(collidedMovVec.m_direction.x) + abs(collidedMovVec.m_direction.y);
-								flEnergy::MoveVectorType collidedSpeedInDir = (collidedMovVec.m_scalar/collidedDirectionTotal) * *collidedWithMovDir;
-								flEnergy::MoveVectorType collidedSpeedInOrth = (collidedMovVec.m_scalar/collidedDirectionTotal) * *collidedWithMovDirOrth;
-								assert(collidedSpeedInDir > 0 || collidedSpeedInDir < 0);
-								assert(collidedSpeedInOrth > 0 || collidedSpeedInOrth < 0);
-
-								//swap speed in collision dir into vec move speeds
-								curMovVec.m_scalar = abs(curSpeedInOrth) + abs(collidedSpeedInDir);
-								collidedMovVec.m_scalar = abs(collidedSpeedInOrth) + abs(curSpeedInDir);
-
-								//swap speeds in collision direction & swap speed values into orth movement vector elements to be normalised in next step
-								*curMovDir = collidedSpeedInDir;
-								*curMovDirOrth = curSpeedInOrth;
-								*collidedWithMovDir = curSpeedInDir;
-								*collidedWithMovDirOrth = collidedSpeedInOrth;
-
-								//pseudo-normalise vectors, so that smallest element is 1 & swap mov vec elements in collision direction
-								flEnergy::MoveVectorType curSmallestMovElement = *curMovDir > *curMovDirOrth ? *curMovDirOrth : *curMovDir;
-								*curMovDir = *curMovDir/curSmallestMovElement;
-								*curMovDirOrth = *curMovDirOrth/curSmallestMovElement;
-
-								flEnergy::MoveVectorType collidedSmallestMovElement = *collidedWithMovDir > *collidedWithMovDirOrth ? *collidedWithMovDirOrth : *collidedWithMovDir;
-								*collidedWithMovDir = *collidedWithMovDir/collidedSmallestMovElement;
-								*collidedWithMovDirOrth = *collidedWithMovDirOrth/collidedSmallestMovElement;
-
-								
-
-								//update iteration count so old movement times are ignored (as they were calculated from our previous speed)
-								//caculate and add new movement times to movement bucket array
-								uint32_t collisionIterCountForCur;
-								uint32_t collisionIterCountForCollided;
-								for (CollisionIteration& indexToCollCount : enIndexesToCollCount)
-								{
-									if (indexToCollCount.energyIndex == GetSpaceAtIndex(curEnergy.m_indexInWorld).m_energyIndex)
-									{
-										collisionIterCountForCur = ++indexToCollCount.iterationCount;
-									}
-									if (indexToCollCount.energyIndex == GetSpaceAtIndex(collidedWith.m_indexInWorld).m_energyIndex)
-									{
-										collisionIterCountForCollided = ++indexToCollCount.iterationCount;
-									}
-								}
-
-								auto CalcNewMovementTimes = [&movementBuckets, currentIterationTimestep, frameEndTime]
-								(PhysicsLib::Vector2D<flEnergy::MoveVectorType> const& _movementVector, uint32_t _energyIndex, uint32_t _collisionIteration) -> void
-								{
-									uint32_t advanceEveryMs = static_cast<uint32_t>(1000.f/_movementVector.m_scalar);
-									uint32_t startingAdvances = currentIterationTimestep/advanceEveryMs;
-									uint32_t endingAdvances = frameEndTime/advanceEveryMs;
-
-									assert(startingAdvances <= endingAdvances);
-									for (uint32_t a = startingAdvances; a < endingAdvances; a++)
-									{
-										uint32_t advanceTime = (a+1)*advanceEveryMs;
-										std::vector<CollisionIteration>& energyBucket = movementBuckets[advanceTime];
-										energyBucket.push_back(CollisionIteration{ _energyIndex, _collisionIteration });
-									}
-								};
-								CalcNewMovementTimes(curMovVec, GetSpaceAtIndex(curEnergy.m_indexInWorld).m_energyIndex, collisionIterCountForCur);
-								CalcNewMovementTimes(collidedMovVec, GetSpaceAtIndex(collidedWith.m_indexInWorld).m_energyIndex, collisionIterCountForCollided);
-								
+								//set up for move left
+								spaceToMoveIntoIndex = GetIndexLeft(energy.m_indexInWorld);
+								movDirection = flEnergy::Direction::LEFT;
 							}
-#endif
-							collidedWith.m_currentMovementStore.Zero();
+
+							MoveTowardsZero(movementStore.x, 1.f);
+						}
+						else if (movementStore.y != 0)
+						{
+							if (movementStore.y > 0)
+							{
+								//set up for move up
+								spaceToMoveIntoIndex = GetIndexUp(energy.m_indexInWorld);
+								movDirection = flEnergy::Direction::UP;
+							}
+							else
+							{
+								//set up for move down
+								spaceToMoveIntoIndex = GetIndexDown(energy.m_indexInWorld);
+								movDirection = flEnergy::Direction::DOWN;
+							}
+
+							MoveTowardsZero(movementStore.y, 1.f);
 						}
 
-						curEnergy.m_currentMovementStore.Zero();
+						//process movement/collisions
+						flSpace& currentSpace = GetSpaceAtIndex(energy.m_indexInWorld);//m_worldGrid[curEnergy.m_indexInWorld];
+						flSpace& spaceToMoveInto = GetSpaceAtIndex(spaceToMoveIntoIndex);
+						if (spaceToMoveInto.m_energyIndex == Globals::NULL_INDEX)
+						{
+							//empty, just move
+							spaceToMoveInto.m_energyIndex = i;
+							currentSpace.m_energyIndex = Globals::NULL_INDEX;
+
+							energy.m_indexInWorld = spaceToMoveIntoIndex;
+						}
+						else
+						{
+							//collision
+							if (spaceToMoveInto.m_energyIndex == Globals::WALL_INDEX)
+							{
+								//at world bound, just reflect
+								if (movDirection == flEnergy::Direction::UP || movDirection == flEnergy::Direction::DOWN)
+								{
+									energy.m_movementVector.m_direction.y *= -1;
+									energy.m_currentMovementStore.y *= -1;
+								}
+								else if (movDirection == flEnergy::Direction::LEFT || movDirection == flEnergy::Direction::RIGHT)
+								{
+									energy.m_movementVector.m_direction.x *= -1;
+									energy.m_currentMovementStore.x *= -1;
+								}
+							}
+							else
+							{
+								flEnergy& collidedWith = GetEnergyAtIndex(spaceToMoveIntoIndex);
+
+								typedef flEnergy::MoveVectorType MoveVecType;
+								PhysicsLib::Vector2D<MoveVecType>& curMovVec = energy.m_movementVector;
+								PhysicsLib::Vector2D<MoveVecType>& collidedMovVec = collidedWith.m_movementVector;
+								MoveVecType* curMovDir = nullptr;
+								MoveVecType* curMovDirOrth = nullptr;
+								MoveVecType* collidedMovDir = nullptr;
+								MoveVecType* collidedMovDirOrth = nullptr;
+								if (movDirection == flEnergy::Direction::UP || movDirection == flEnergy::Direction::DOWN)
+								{
+									curMovDir = &curMovVec.m_direction.y;
+									curMovDirOrth = &curMovVec.m_direction.x;
+									collidedMovDir = &collidedMovVec.m_direction.y;
+									collidedMovDirOrth = &collidedMovVec.m_direction.x;
+								}
+								else if (movDirection == flEnergy::Direction::LEFT || movDirection == flEnergy::Direction::RIGHT)
+								{
+									curMovDir = &curMovVec.m_direction.x;
+									curMovDirOrth = &curMovVec.m_direction.y;
+									collidedMovDir = &collidedMovVec.m_direction.x;
+									collidedMovDirOrth = &collidedMovVec.m_direction.y;
+								}
+								assert(curMovDir);
+								assert(curMovDirOrth);
+								assert(collidedMovDir);
+								assert(collidedMovDirOrth);
+
+								MoveVecType curOldMovScalar = curMovVec.m_scalar / (abs(*curMovDir) + abs(*curMovDirOrth)); //how many movement vec iterations we perform per second
+								MoveVecType curSpeedInCollDir = curOldMovScalar * *curMovDir;
+								MoveVecType collidedOldMovScalar = collidedMovVec.m_scalar / (abs(*collidedMovDir) + abs(*collidedMovDirOrth));
+								MoveVecType collidedSpeedInCollDir = collidedOldMovScalar * *collidedMovDir;
+								assert(curSpeedInCollDir > 0 || curSpeedInCollDir < 0);
+								assert(collidedSpeedInCollDir > 0 || collidedSpeedInCollDir < 0);
+
+								//swap movement speed of energies for collision axis and scale orth movement value to temporarily represent speed in orth direction, not just direction
+								*curMovDir = collidedSpeedInCollDir;
+								*curMovDirOrth = *curMovDirOrth * curOldMovScalar;
+								*collidedMovDir = curSpeedInCollDir;
+								*collidedMovDirOrth = *collidedMovDirOrth * collidedOldMovScalar;
+
+								//update movement vector scalar to contain new total speed (tile movements per second)
+								MoveVecType curNewSpeed = round(abs(*curMovDir) + abs(*curMovDirOrth));
+								curMovVec.m_scalar = curNewSpeed != 0.f ? curNewSpeed : 1.f;
+								MoveVecType collNewSpeed = round(abs(*collidedMovDir) + abs(*collidedMovDirOrth));
+								collidedMovVec.m_scalar = collNewSpeed != 0.f ? collNewSpeed : 1.f;
+								assert(curMovVec.m_scalar > 0 || curMovVec.m_scalar < 0);
+								assert(collidedMovVec.m_scalar > 0 || collidedMovVec.m_scalar < 0);
+
+								//pseudo-nomalise movement vector so that the smallest element is 1
+								MoveVecType curMovSmallest = abs(*curMovDir) > abs(*curMovDirOrth) ? abs(*curMovDirOrth) : abs(*curMovDir);
+								*curMovDir = round(*curMovDir/curMovSmallest);
+								*curMovDirOrth = round(*curMovDirOrth/curMovSmallest);
+								MoveVecType collMovSmallest = abs(*collidedMovDir) > abs(*collidedMovDirOrth) ? abs(*collidedMovDirOrth) : abs(*collidedMovDir);
+								*collidedMovDir = round(*collidedMovDir/collMovSmallest);
+								*collidedMovDirOrth = round(*collidedMovDirOrth/collMovSmallest);
+
+								energy.m_currentMovementStore.Zero();
+								collidedWith.m_currentMovementStore.Zero();
+							}
+						}
 					}
 				}
 			}
 		}
-	}
-#endif
 
-#if 0
-	//update movement, check & process collisions
-	{
-		/*
-		*  1. Iterate through energy array one element at a time.
-		*  2. 
-		*
-		*
+
+		/****************************************************************
+		****  PREVIOUS PHYSICS IMPLEMENTATION APPROACHES  ****
+		************************************************************
+		*	1. Trails
+		*		Method:
+		*		- Iterate through energy movements one by one, and for each, compute entire required movement for passed frame time.
+		*		- energy marks the tiles it passes through with the time within the frame it was in each tile
+		*		- Other energies then check the tile they're moving into as to whether another tile was in it for this frame, within the same time bound as they should be in it
+		*			- In this case, we have a collision
+		*				- Simulate a collision at the overlap tile and clear the movement data beyond the collision tile for the tile that already pre-calculated its movement
+		*				- Recalculate the collided with energy's new path after the collision and continue computing the collision path for the collider energy
+		*		Issues:
+		*		- Energies may pass over the same tile spaces but not actually collide, i.e. in the tiles at different times on the frame. In this case, we need to store multiple energy data associated
+		*		  with the tile space, which adds a certain ambiguity as to how big the data struct for each single space tile needs to be.
+		*			- Possible solution: If this is a rare occurence, then it should be fair inexpensive to have a pre-allocted array that provides storage for associating a space tile index to a group
+		*			  of energy data.
+				- May end up computing multiple collisions, only to have a collision occur nearer to the start of the movement trail, making all the former collision computations irrelevant
+					- PS: Do one full movement trail calculation before processing any overlaps. Process overlaps from closest to starting tile for each energy.
+		*	2. Pre-compute all movement times and sort
+		*			Method:
+		*			- For each energy, compute when during this frame they'll move and group these by advance time in a sorted map
+		*			- Then simply iterate through sorted map and advance each group in order.
+		*			Issues:
+		*			- Pre computed movement time data is for simplest case of changes in speed. When a speed change does occur (i.e. due to a collision), we'll need to have some way of ignoring/removing 
+		*			  old data from the advance times map and inserting the newly computed move time data based on the energy's post collision speed which could get costly.
 		*/
-		std::function<void(uint32_t, uint32_t)> ProcessMovementRecursive;
-		ProcessMovementRecursive = [this, &ProcessMovementRecursive, _timeStep](uint32_t _waitingIndex, uint32_t _msAdvanced) -> void
-		{
-			flEnergy::MoveVectorType prevSpeed;
-			for (uint32_t i = 0; i < _waitingIndex; i++)
-			{
-				flEnergy& curEnergy = m_worldEnergy[i];
-				PhysicsLib::Vector2D<flEnergy::MoveVectorType>& curMovVec = curEnergy.m_movementVector;
-				if (i == 0)
-					prevSpeed = curMovVec.m_scalar; //base value
 
-				uint32_t moveEveryMs = static_cast<uint32_t>(1000.f/curMovVec.m_scalar);
-				if (moveEveryMs <= _timeStep + curEnergy.m_accumulatedMoveTime) //check if enough time has passed to move
-				{
-
-					/*@current - trying to figure out if accumulated movetime could affect order in which cells should move
-					*		   - what is accumulated time/ms, per element, in this context?
-					*/
-
-
-					flEnergy::MoveVectorType speedDif = curMovVec.m_scalar - prevSpeed;
-					if (speedDif > 0.f)
-					{
-						uint32_t msAdvanced = static_cast<uint32_t>(1000.f/speedDif);
-						ProcessMovementRecursive(i, speedDif); //recursively iterate from start of array to update all elements that will have moved in the milliseconds we've advanced
-					}
-
-					//once we've returned from recursive calls, we're now free to process this index's movement
-					//if ()
-				}
-				else
-				{
-					curEnergy.m_accumulatedMoveTime += _timeStep;
-				}
-			}
-		};
-		ProcessMovementRecursive(m_worldEnergy.size(), 0.f);
+		/******************************************
+		****  PHYSICS TODO  ****
+		******************************
+		*	- Add handling to intersection finder for verticle lines and parrallel lines
+		*	- Fix conversion from Polar coordinates to Cartesian for
+		*	1. Create new GameData game frame/layer for visualising and playing around with math functions to act as a interactive workbook
+		*	   for when trying to solve difficult math problems
+		*/
 	}
-#endif
 
-
-//half finished code for points leaving movement trails in order to check if two points cross movement paths
-#if 0
-	for (uint32_t i = 0; i < Globals::TOTAL_WORLD_SIZE; i++)
+	//update cursor
 	{
-		//check for collisions and update pos
-		{
-			flPoint& startingPoint = m_worldGrid[i];
-			if (startingPoint.m_energy > 0)
-			{
-				uint32_t startingIndex = i;
-				startingPoint.m_timeEntered = 0;
-				PhysicsLib::Vector2D<flPoint::MoveVectorType>& movVec = startingPoint.m_movementVector;
-				//movVec.m_startingPoint; //currentPos in worldGrid (needed?)
-
-				movVec.m_direction; //movement ratio
-				movVec.m_scalar; //cells/tiles moved per second
-				if (movVec.m_scalar > 0) //check if we're moving
-				{
-					uint32_t currentIndex = i;
-					uint32_t moveEveryMS = 1000u/movVec.m_scalar; //how many milli-seconds between each move
-					uint32_t moveIterationsToDo = _timeStep/moveEveryMS;
-					uint32_t moveIterationsDone = 0;
-
-					startingPoint.m_accumulatedMoveTime += _timeStep % moveEveryMS;
-					if (startingPoint.m_accumulatedMoveTime >= moveEveryMS) //handle carried over time making up a whole movement
-					{
-						startingPoint.m_accumulatedMoveTime -= moveEveryMS;
-						moveIterationsToDo++;
-					}
-
-					while (moveIterationsDone < moveIterationsToDo)
-					{
-						flPoint& currentPoint = m_worldGrid[currentIndex];
-
-						//maintain a vector store checking how much of current move cycle ratio we've completed
-						flVec2<flPoint::MoveVectorType>& movRatioStore = currentPoint.m_currentMovementStore;
-						if (movRatioStore == 0)
-						{
-							movRatioStore = movVec.m_direction; //current move cycle exhausted - refresh
-						}
-
-						//get the point we're looking to move into next
-						uint32_t nextIndex = Globals::TOTAL_WORLD_SIZE;
-						if (movRatioStore.x != 0)
-						{
-							if (movRatioStore.x > 0)
-							{
-								movRatioStore.x--;
-								nextIndex = GetIndexRight(currentIndex);
-							}
-							else if (movRatioStore.x < 0)
-							{
-								movRatioStore.x++;
-								nextIndex = GetIndexLeft(currentIndex);
-							}
-						}
-						else if (movRatioStore.y != 0)
-						{
-							if (movRatioStore.y > 0)
-							{
-								movRatioStore.y--;
-								nextIndex = GetIndexUp(currentIndex);
-							}
-							else if (movRatioStore.y < 0)
-							{
-								movRatioStore.y++;
-								nextIndex = GetIndexDown(currentIndex);
-							}
-						}
-						assert(nextIndex < Globals::TOTAL_WORLD_SIZE);
-
-						//process how we should handle trying to move into our next point
-						flPoint& nextPoint = GetPoint(nextIndex);
-						if (nextPoint.m_energy == 2)
-						{
-							if (currentPoint.m_timeEntered >= nextPoint.m_timeEntered)
-							{
-								if (currentPoint.m_timeExited <= nextPoint.m_timeExited)
-								{
-
-								}
-							}
-						}
-						else if (nextPoint.m_energy == 1)
-						{
-							//end of movement this frame vs hasn't been processed yet
-							//A: just calculate time bounds for this point to check against
-
-							//just need to store for what bit of current frame time point was in each cell during its move to compare against
-
-						}
-						else if (nextPoint.m_energy == 0)
-						{
-							//empty space, no extra processing
-							if (currentIndex != startingIndex) //using starting point as store of this point's values, will update it at end of move
-							{
-								currentPoint.m_energy = 2;
-							}
-							uint32_t timeBoundary = (moveIterationsDone+1) * moveEveryMS;
-							currentPoint.m_timeExited = timeBoundary;
-							nextPoint.m_timeEntered = timeBoundary;
-
-							currentIndex = nextIndex;
-						}
-
-						//could return different types of null value for 'nullTop/nullBottom and nullLeft/nullRight' to inform which axis we 
-						//should reflect
-						moveIterationsDone++;
-					}
-
-					//referencing data stored in point's initial position throughout movement projection, so don't move data out of starting
-					//point until we've finished iterating
-
-
-				} //if scalar > 0
-			}
-		}
+		flVec2<int> mousePos;
+		m_inputCoreIF.GetMousePos(mousePos);
+		UpdateClaimRectBounds(mousePos);
+		ClaimTiles();
 	}
-#endif
-
-//half finsihed code moving points and reflecting at world boundary
-#if 0
-				typedef flPoint::MoveVectorType flPointVecType;
-				flVec2<flPointVecType>& currentPos = p.m_movementVector.m_startingPoint;
-				flVec2<flPointVecType>& currentMoveVec = p.m_movementVector.m_direction;
-				flVec2<flPointVecType> movThisFrame = currentMoveVec * 0.001f * static_cast<float>(_timeStep);
-				flVec2<flPointVecType> nextPos = currentPos + movThisFrame; //projection with no collisions
-
-
-				flVec2<int32_t> currentPosInt = flVec2<int32_t>(static_cast<int32_t>(round(currentPos.x)),
-					static_cast<int32_t>(round(currentPos.y)));
-				flVec2<int32_t> nextPosInt = flVec2<int32_t>(static_cast<int32_t>(round(nextPos.x)),
-					static_cast<int32_t>(round(nextPos.y)));
-				if (nextPosInt != currentPosInt) //only update pos if we've moved over at least one rounding boundary, e.g. 2.4 -> 2, 2.6 -> 3
-				{
-					/*** attraction ***/
-					//@TODO
-
-
-					/*** repulsion ***/
-					/* Check collision between each particle. Axis-aligned reflections, RNG based off of movement vectors to decide if collisions
-					*  should be veticle or horizontal reflection.
-					*/
-					// @TODO - After each collision will need to check collisions again for new reflected vector
-					//		 - Thinking should only implement one level of collision check, no attraction and then the ability to push the points
-					//		   around to give a basic gas particle simulation
-
-					/* Check if either x or y are beyond world bounds. If they are, we just want to do a standard reflection along the edges of the world:
-					*  if x bound then its the x coor movement that's brought us beyond the world bounds - minus x dist between starting point and
-					*  world bound from x and then invert the remainder to get the reflected x pos. Similar thing for y. */
-					{
-						flPointVecType distToXBound, distToYBound;
-						bool exitOut = false;
-						if (nextPosInt.x < 0)
-						{
-							distToXBound = -0.5f - currentPos.x;
-							float reflectedXMov = -1.f * (movThisFrame.x - distToXBound);
-							nextPos.x = -0.5f + reflectedXMov;
-
-							currentMoveVec.x = -currentMoveVec.x; //reverse movement vector x
-							exitOut = true;
-						}
-						else if (nextPosInt.x > Globals::WORLD_X_SIZE-1)
-						{
-							distToXBound = static_cast<float>(Globals::WORLD_X_SIZE) - 0.4999f - currentPos.x;
-							float reflectedXMov = -1 * (movThisFrame.x - distToXBound);
-							nextPos.x = static_cast<float>(Globals::WORLD_X_SIZE) - 0.4999f + reflectedXMov;
-
-							currentMoveVec.x = -currentMoveVec.x; //reverse movement vector x
-							exitOut = true;
-						}
-						if (nextPos.y < 0)
-						{
-							distToYBound = -0.5f - currentPos.y;
-							float reflectedYMov = -1 * (movThisFrame.y - distToYBound);
-							nextPos.y = -0.5f + reflectedYMov;
-
-							currentMoveVec.y = -currentMoveVec.y; //reverse movement vector y
-							exitOut = true;
-						}
-						else if (nextPos.y > Globals::WORLD_Y_SIZE-1)
-						{
-							distToYBound = static_cast<float>(Globals::WORLD_Y_SIZE) - 0.4999f - currentPos.y;
-							float reflectedYMov = -1 * (movThisFrame.y - distToYBound);
-							nextPos.y = static_cast<float>(Globals::WORLD_Y_SIZE) -0.4999f + reflectedYMov;
-
-							currentMoveVec.y = -currentMoveVec.y; //reverse movement vector y
-							exitOut = true;
-						}
-						if (exitOut)
-							continue; //exit out if reflected at world bounds - we'll update its pos on the next frame
-					}
-#if 0
-					if (	 /*nextPosInt.x < 0 || */nextPosInt.x >= Globals::WORLD_X_SIZE
-						||   nextPosInt.y < 0 || nextPosInt.y >= Globals::WORLD_Y_SIZE )
-					{
-						continue;
-					}
-#endif
-					assert( nextPosInt.x >= 0 && nextPosInt.x < Globals::WORLD_X_SIZE
-						 && nextPosInt.y >= 0 && nextPosInt.y < Globals::WORLD_Y_SIZE );
-					
-					uint32_t currentIndex = Pos2DToPos1D(currentPosInt);
-					uint32_t nextIndex = Pos2DToPos1D(nextPosInt);
-					assert(currentIndex != nextIndex);
-
-					//move energy into its new worldGrid tile
-					flPoint& currentPoint = m_worldGrid[currentIndex];
-					flPoint& nextPoint = m_worldGrid[nextIndex];
-					nextPoint = currentPoint;
-					currentPoint.Nullify();
-
-					nextPoint.m_movementVector.m_startingPoint = nextPos;
-				}
-				else
-				{
-					//update float store of current position
-					currentPos = nextPos;
-				}
-#endif
-
-	/******************************************
-	****  PHYSICS TODO  ****
-	******************************
-	*	- Add handling to intersection finder for verticle lines and parrallel lines
-	*	- Fix conversion from Polar coordinates to Cartesian for 
-	*	1. Create new GameData game frame/layer for visualising and playing around with math functions to act as a interactive workbook
-	*	   for when trying to solve difficult math problems
-	*/
 
 	return true;
+}
+
+void WorldGrid::UpdateClaimRectBounds(flVec2<int> _mousePos)
+{
+	{ //update m_claimRect's bounds
+		flVec2<float> claimRectPosTL = PixelPosInTileWorld(static_cast<float>(_mousePos.x) - (m_mouseCursorDim.x/2.f), //@fix - think the issue is with this function - putting cursor in top left tile produces a negative pos
+														   static_cast<float>(_mousePos.y) - (m_mouseCursorDim.y/2.f));
+		flVec2<float> mouseCursorDimTW = (m_mouseCursorDim/static_cast<float>(Globals::WINDOW_WIDTH)) * m_cullingViewport.m_xExtension*2.f;
+		ClaimRect claimRect;
+		claimRect.m_leftCol		= static_cast<int32_t>(floor(claimRectPosTL.x));
+		claimRect.m_rightCol	= static_cast<int32_t>(floor(claimRect.m_leftCol + mouseCursorDimTW.x));
+		claimRect.m_topRow		= static_cast<int32_t>(floor(claimRectPosTL.y));
+		claimRect.m_bottomRow	= static_cast<int32_t>(floor(claimRect.m_topRow + mouseCursorDimTW.y));
+
+		//adjustments to wrap cursor edges to world edge if any box edges are within the world
+		if (claimRect.m_leftCol < 0 && claimRect.m_rightCol > 0)
+			claimRect.m_leftCol = 0;
+		if (claimRect.m_rightCol > Globals::WORLD_X_SIZE && claimRect.m_leftCol < Globals::WORLD_X_SIZE)
+			claimRect.m_rightCol = Globals::WORLD_X_SIZE;
+		if (claimRect.m_topRow < 0 && claimRect.m_bottomRow > 0)
+			claimRect.m_topRow = 0;
+		if (claimRect.m_bottomRow > Globals::WORLD_Y_SIZE && claimRect.m_topRow < Globals::WORLD_Y_SIZE)
+			claimRect.m_bottomRow = Globals::WORLD_Y_SIZE;
+
+		//adjustments to make sure atleast one box is always highlighted if the cursor is within world bounds - for when viewport is zoomed in to less than one tile size
+		if (claimRect.m_leftCol == claimRect.m_rightCol)
+			claimRect.m_rightCol++;
+		if (claimRect.m_topRow == claimRect.m_bottomRow)
+			claimRect.m_bottomRow++;
+
+		m_claimRect = claimRect;
+	}
+
+	m_cursorInWorld = false;
+	if (	m_claimRect.m_leftCol >= 0
+		&&	m_claimRect.m_rightCol <= Globals::WORLD_X_SIZE
+		&&	m_claimRect.m_topRow >= 0
+		&&	m_claimRect.m_bottomRow <= Globals::WORLD_Y_SIZE)
+	{
+		m_cursorInWorld = true;
+	}
+
+	SDL_Point upperLeft = { -1, -1 };
+	SDL_Point bottomLeft = { -1, -1 };
+	SDL_Point bottomRight = { -1, -1 };
+	SDL_Point upperRight = { -1, -1 };
+	if (m_cursorInWorld)
+	{
+		flVec2<float> upperLeftPixPos = TilePosToPixelPos(m_claimRect.m_leftCol, m_claimRect.m_topRow);
+		upperLeft = { static_cast<int>(floor(upperLeftPixPos.x)), static_cast<int>(floor(upperLeftPixPos.y)) };
+
+		flVec2<float> bottomLeftPixPos = TilePosToPixelPos(m_claimRect.m_leftCol, m_claimRect.m_bottomRow);
+		bottomLeft = { static_cast<int>(floor(bottomLeftPixPos.x)), static_cast<int>(floor(bottomLeftPixPos.y)) };
+
+		flVec2<float> bottomRightPixPos = TilePosToPixelPos(m_claimRect.m_rightCol, m_claimRect.m_bottomRow);
+		bottomRight = { static_cast<int>(floor(bottomRightPixPos.x)), static_cast<int>(floor(bottomRightPixPos.y)) };
+
+		flVec2<float> topRightPixPos = TilePosToPixelPos(m_claimRect.m_rightCol, m_claimRect.m_topRow);
+		upperRight = { static_cast<int>(floor(topRightPixPos.x)), static_cast<int>(floor(topRightPixPos.y)) };
+	}
+
+	m_cursorBox[0] = upperLeft;
+	m_cursorBox[1] = bottomLeft;
+	m_cursorBox[2] = bottomRight;
+	m_cursorBox[3] = upperRight;
+	m_cursorBox[4] = upperLeft; //wrap back around to starting point to complete box
+}
+
+void WorldGrid::ClaimTiles()
+{
+	if (m_cursorInWorld)
+	{
+		if (m_claimBitMap != eClaimState::NoOp1 && m_claimBitMap != eClaimState::NoOp2)
+		{
+			uint32_t transformTo;
+			if (m_claimBitMap == eClaimState::Claim)
+				transformTo = Globals::WALL_INDEX;
+			else if (m_claimBitMap == eClaimState::Unclaim)
+				transformTo = Globals::NULL_INDEX;
+
+			for (int32_t row = m_claimRect.m_topRow; row < m_claimRect.m_bottomRow; row++)
+			{
+				for (int32_t col = m_claimRect.m_leftCol; col < m_claimRect.m_rightCol; col++)
+				{
+					uint32_t index = Pos2DToPos1D(flVec2<int>(col, row));
+					flSpace& iSpace = m_worldGrid[index];
+					if (iSpace.m_energyIndex >= Globals::WALL_INDEX) //don't change tiles containing energy
+					{
+						iSpace.m_energyIndex = transformTo;
+					}
+				}
+			}
+		}
+	}
 }
 
 //brief - get distances in grid tiles from center to edge of worldGrid
@@ -926,6 +563,41 @@ uint32_t WorldGrid::GetIndexRight(uint32_t _currentPointIndex) const
 	{
 		return _currentPointIndex + 1;
 	}
+}
+
+/* brief  - get (row, col) of tile that contains given pixel pos
+*  return - x - row
+*		  - y - column
+*/
+flVec2<float> WorldGrid::PixelPosInTileWorld(uint32_t _pixelX, uint32_t _pixelY) const
+{
+	flVec2<float> tileWorldPos;
+	//re-orient viewport coors to have 0,0 set at the top left corner of the tile world and to have m_pos represent the top left point of the viewport
+	tileWorldPos.x = (-1*m_cullingViewport.m_pos.y) + (Globals::WORLD_Y_SIZE/2.f) - m_cullingViewport.m_yExtension;
+	tileWorldPos.y = m_cullingViewport.m_pos.x + (Globals::WORLD_X_SIZE/2.f) - m_cullingViewport.m_xExtension; //x & y flipped here as using x to store rows, but rows corresponds to a measure in the Y axis.
+
+	flVec2<float> offsetWithinViewport;
+	float windowToViewportScalar = (m_cullingViewport.m_xExtension * 2.f) / static_cast<float>(Globals::WINDOW_WIDTH);
+	offsetWithinViewport.x = static_cast<float>(_pixelY) * windowToViewportScalar;
+	offsetWithinViewport.y = static_cast<float>(_pixelX) * windowToViewportScalar;
+
+	tileWorldPos.x = tileWorldPos.x + offsetWithinViewport.x;
+	tileWorldPos.y = tileWorldPos.y + offsetWithinViewport.y;
+
+	return flVec2<float>(tileWorldPos.y, tileWorldPos.x);
+}
+
+flVec2<float> WorldGrid::TilePosToPixelPos(int32_t _col, int32_t _row) const
+{
+	flVec2<float> viewportTL;
+	viewportTL.x = m_cullingViewport.m_pos.x + static_cast<float>(Globals::WORLD_X_SIZE)/2.f - m_cullingViewport.m_xExtension;
+	viewportTL.y = (-1*m_cullingViewport.m_pos.y) + static_cast<float>(Globals::WORLD_Y_SIZE)/2.f - m_cullingViewport.m_yExtension;
+
+	flVec2<float> tilePosVP;
+	tilePosVP.x = static_cast<float>(_col) - viewportTL.x;
+	tilePosVP.y = static_cast<float>(_row) - viewportTL.y;
+
+	return tilePosVP * GetTileToPixelScalar();
 }
 
 /////////////////////				    ///////////////////////////////////////////////////////
@@ -1183,10 +855,21 @@ void WorldGrid::DelegateDraw(SDL_Renderer * const _gRenderer) const
 			drawColour.a = 255u;
 			if (energyIndex < Globals::NULL_INDEX)
 			{
-				//orange
-				drawColour.r = 255;
-				drawColour.g = 190;
-				drawColour.b = 87;
+				if (energyIndex < Globals::WALL_INDEX)
+				{
+					//orange
+					drawColour.r = 255;
+					drawColour.g = 190;
+					drawColour.b = 87;
+				}
+				else
+				{
+					//wall index
+					//grey
+					drawColour.r = 92;
+					drawColour.g = 92;
+					drawColour.b = 92;
+				}
 			}
 			else
 			{
@@ -1222,6 +905,10 @@ void WorldGrid::DelegateDraw(SDL_Renderer * const _gRenderer) const
 	std::cout << "Time Difference: " << timeDif << std::endl;
 	std::cout << std::endl;
 #endif
+
+	//render mouse cursor box
+	SDL_SetRenderDrawColor(_gRenderer, 255, 255, 255, 255);
+	SDL_RenderDrawLines(_gRenderer, m_cursorBox, 5);
 }
 
 /////////////////////				   ///////////////////////////////////////////////////////
@@ -1318,4 +1005,27 @@ void WorldGrid::KeyPressedInput(SDL_Scancode const& _key)
 		m_cullingViewport.m_debugPanIncrement += 0.1f;
 	}
 #endif
+}
+
+void WorldGrid::MouseDownInput(eMouseButtonType const _buttonType, flVec2<int> _mousePos)
+{
+	if (_buttonType == eMouseButtonType::LeftClick)
+	{
+		m_claimBitMap |= eClaimState::Claim;
+	}
+	if (_buttonType == eMouseButtonType::RightClick)
+	{
+		m_claimBitMap |= eClaimState::Unclaim;
+	}
+}
+void WorldGrid::MouseUpInput(eMouseButtonType const _buttonType, flVec2<int> _mousePos)
+{
+	if (_buttonType == eMouseButtonType::LeftClick)
+	{
+		m_claimBitMap &= ~eClaimState::Claim;
+	}
+	if (_buttonType == eMouseButtonType::RightClick)
+	{
+		m_claimBitMap &= ~eClaimState::Unclaim;
+	}
 }
